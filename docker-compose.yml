@@ -2,7 +2,7 @@ services:
   assistant:
     build: .
     ports:
-      - "8000:8000"
+      - "9247:9247"
     env_file:
       - .env
     restart: unless-stopped
