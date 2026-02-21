@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     anthropic_api_key: str = ""
     app_password: str = "changeme"
-    claude_model: str = "claude-sonnet-4-0"
+    claude_model: str = "claude-sonnet-4-6"
     host: str = "0.0.0.0"
     port: int = 9247
     chroma_persist_dir: str = "./chroma_data"
