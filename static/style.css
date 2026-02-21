@@ -111,7 +111,7 @@ body {
     height: 100vh;
 }
 
-#chat-screen[hidden] {
+.screen[hidden] {
     display: none;
 }
 
