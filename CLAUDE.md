@@ -14,7 +14,7 @@ This is an MVP proof-of-concept intended to get in front of testers quickly, the
 |-----------|--------|-----------|
 | Language | Python 3.11+ | Best RAG library ecosystem |
 | Web framework | FastAPI + Uvicorn | Async, fast, minimal boilerplate |
-| LLM | Claude Sonnet 4 (`claude-sonnet-4-0`) | Good cost/quality balance for document Q&A (~$0.01-0.03/query) |
+| LLM | Claude Sonnet 4.6 (`claude-sonnet-4-6`) | Best cost/quality balance for document Q&A; upgraded from Sonnet 4 on 2026-02-21 |
 | Vector store | ChromaDB (embedded) | No separate database service needed; persists to disk; good enough for <1000 chunks |
 | Embeddings | `all-MiniLM-L6-v2` (ChromaDB default) | Free, runs locally, no extra API key; adequate for semantic search at this scale |
 | PDF extraction | PyMuPDF + pdfplumber fallback | PyMuPDF is fast for text-heavy PDFs; pdfplumber handles tables and complex layouts |
@@ -132,7 +132,7 @@ See `.env.example` for all settings. **Required**: `ANTHROPIC_API_KEY`, `APP_PAS
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | *(required)* | Anthropic API key from console.anthropic.com |
 | `APP_PASSWORD` | `changeme` | Shared password for the testing phase |
-| `CLAUDE_MODEL` | `claude-sonnet-4-0` | Claude model ID (see Anthropic docs for options) |
+| `CLAUDE_MODEL` | `claude-sonnet-4-6` | Claude model ID (see Anthropic docs for options) |
 | `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `9247` | Server port |
 | `CHROMA_PERSIST_DIR` | `./chroma_data` | Path where ChromaDB stores its index |
@@ -184,7 +184,7 @@ For club IT staff planning a production deployment:
 
 ## Current Status & Next Steps
 
-**Status as of 2026-02-21**: MVP code is complete, committed, and pushed to GitHub. All 29 tests pass. 194 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key. Server has been verified to start and respond on the health endpoint.
+**Status as of 2026-02-21**: MVP code is complete. All 29 tests pass. 194 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Auth screen and chat layout CSS bugs fixed. Manual QA in progress — needs to be completed.
 
 ### Resume Development
 
@@ -198,28 +198,85 @@ python -m lgac_assistant
 
 If port 9247 is already in use: `lsof -ti:9247 | xargs kill`
 
+**Important**: Use incognito/private windows for testing to avoid CSS caching issues. Cmd+Shift+N (Chrome) or Cmd+Shift+P (Safari).
+
 ### Manual QA Checklist (not yet completed)
 
-Run through these tests with the server running:
+Run through these tests with the server running at http://localhost:9247. Use a new incognito window for each test session to avoid cache issues.
 
-1. **Password gate**: Open http://localhost:9247
-   - Enter wrong password → should show "Invalid password"
-   - Enter correct password (`lgac2026`) → should enter chat interface
-2. **Club question**: "What is the dress code for golf?" → relevant answer citing dress code docs
-3. **Follow-up with context**: "What about dining?" → maintains context, answers about dining dress code
-4. **Off-topic question**: "What's the weather today?" → politely declines
-5. **Specific policy**: "What are the annual dues?" → cites DuesSheet PDF
-6. **Vague question**: "Tell me about the club" → general overview from brochure docs
-7. **Unknown topic**: "What is the wifi password?" → admits it doesn't know, suggests contacting club
+#### Test 1: Password Gate
+1. Open http://localhost:9247
+2. Enter wrong password → should show "Invalid password"
+3. Enter correct password (`lgac2026`) → should enter chat interface
+4. Verify: auth screen disappears completely, chat input spans full browser width
+
+**Status**: Auth screen fix verified via Playwright. Needs manual confirmation.
+
+#### Test 2: Club Question
+- Ask: **"What is the dress code for golf?"**
+- Expected: relevant answer citing dress code documents
+- Check: sources listed should include `TLGACDressCodeGRID2026.pdf`
+
+#### Test 3: Follow-up with Context
+- Ask (immediately after Test 2): **"What about dining?"**
+- Expected: maintains conversation context, answers about dining dress code
+- **Known issue**: dining dress code answers may be incomplete due to garbled PDF table extraction (#31). The dress code grid PDF has rotated column headers that extract backwards. If the answer says it can't find dining info, that's the known bug, not a model failure.
+
+#### Test 4: Off-topic Question
+- Ask: **"What's the weather today?"**
+- Expected: politely declines, explains it only answers club-related questions
+
+#### Test 5: Specific Policy
+- Ask: **"What are the annual dues?"**
+- Expected: cites the `DuesSheet26_11.1.25.pdf`
+- Check: amounts and membership categories should be accurate to the document
+
+#### Test 6: Vague Question
+- Ask: **"Tell me about the club"**
+- Expected: general overview drawn from brochure documents
+- Check: sources should include `TLGAC_BrochureWEB.pdf` or `TLGAC_MbrshipOverview25_12.10.25.pdf`
+
+#### Test 7: Unknown Topic
+- Ask: **"What is the wifi password?"**
+- Expected: admits it doesn't know, suggests contacting the club directly
+- Check: should NOT fabricate an answer
+
+#### Test 8: Markdown Rendering (known issue)
+- During any of the above tests, observe if responses contain raw markdown (`**bold**`, `- bullets`, etc.)
+- **Known issue**: markdown is not rendered as HTML (#28)
 
 ### After QA Passes
 
-1. **Deploy to Cloud Run** (Issue #19) — gets an HTTPS URL to share with testers
-2. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
-3. **Prioritize post-MVP** — issues #15-21 on GitHub, driven by tester feedback
+1. **Fix dress code table extraction** (#31, high priority) — dining dress code questions fail due to garbled PDF parsing
+2. **Deploy to Cloud Run** (#19) — gets an HTTPS URL to share with testers
+3. **Add feedback mechanism** (#32) — let testers report issues inline
+4. **Render markdown in responses** (#28) — improve readability
+5. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
 
-### GitHub Issues
+### Open GitHub Issues
 
-- **Epic**: #1 (tracking issue)
-- **MVP** (#2-14): all closed/completed
-- **Post-MVP** (#15-21): open — streaming, production auth, persistent sessions, rate limiting, Cloud Run deploy, admin doc upload, monitoring
+| # | Title | Priority | Category |
+|---|-------|----------|----------|
+| 31 | Fix table extraction for dress code grid PDF | High | Bug |
+| 29 | Improve document parsing pipeline for complex layouts | High | Enhancement |
+| 32 | Add user feedback collection and admin review page | Medium | Feature |
+| 28 | Render markdown in assistant responses as HTML | Medium | Enhancement |
+| 30 | Add OCR support for image-based documents | Medium | Enhancement |
+| 27 | Add Playwright browser tests for auth flow and chat UI | Medium | Testing |
+| 24 | Require HTTPS before cloud deployment | Medium | Infrastructure |
+| 19 | Google Cloud Run deployment | Medium | Infrastructure |
+| 21 | Monitoring and logging | Low | Feature |
+| 20 | Admin document upload and re-indexing | Low | Feature |
+| 18 | Rate limiting | Low | Security |
+| 17 | Persistent session storage | Low | Feature |
+| 16 | Production authentication (OAuth/SSO) | Low | Feature |
+| 15 | Streaming responses | Low | Enhancement |
+
+### Completed This Session (2026-02-21)
+
+- Changed default port from 8000 to 9247 (#22, PR #23)
+- Fixed auth screen not hiding after login (#25, PR #26)
+- Fixed chat input layout — full-width spanning (#25, PR #33)
+- Upgraded LLM from Claude Sonnet 4 to Sonnet 4.6
+- Verified Playwright MCP browser testing works (basis for #27)
+- Created issues #24, #27, #28, #29, #30, #31, #32

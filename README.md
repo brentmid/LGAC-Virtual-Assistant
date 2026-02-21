@@ -152,7 +152,7 @@ All settings are configured via environment variables or a `.env` file. See `.en
 |----------|----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | — | API key from [console.anthropic.com](https://console.anthropic.com/) |
 | `APP_PASSWORD` | Yes | `changeme` | Shared password for the testing phase |
-| `CLAUDE_MODEL` | No | `claude-sonnet-4-0` | Claude model ID |
+| `CLAUDE_MODEL` | No | `claude-sonnet-4-6` | Claude model ID |
 | `HOST` | No | `0.0.0.0` | Server bind address |
 | `PORT` | No | `9247` | Server port |
 | `CHROMA_PERSIST_DIR` | No | `./chroma_data` | ChromaDB storage path |
