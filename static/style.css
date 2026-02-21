@@ -106,13 +106,18 @@ body {
 
 /* Chat Screen */
 #chat-screen {
-    display: flex;
     flex-direction: column;
+    align-items: stretch;
     height: 100vh;
+    width: 100%;
 }
 
 .screen[hidden] {
     display: none;
+}
+
+#chat-screen:not([hidden]) {
+    display: flex;
 }
 
 header {
@@ -232,8 +237,6 @@ header .subtitle {
 .input-row {
     display: flex;
     gap: 8px;
-    max-width: 900px;
-    margin: 0 auto;
 }
 
 #chat-input {
