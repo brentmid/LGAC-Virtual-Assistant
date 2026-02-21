@@ -24,6 +24,6 @@ RUN python scripts/ingest_docs.py
 RUN useradd -m -r appuser && chown -R appuser:appuser /app
 USER appuser
 
-EXPOSE 8000
+EXPOSE 9247
 
 CMD ["python", "-m", "lgac_assistant"]

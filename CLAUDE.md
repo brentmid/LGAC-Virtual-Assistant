@@ -134,7 +134,7 @@ See `.env.example` for all settings. **Required**: `ANTHROPIC_API_KEY`, `APP_PAS
 | `APP_PASSWORD` | `changeme` | Shared password for the testing phase |
 | `CLAUDE_MODEL` | `claude-sonnet-4-0` | Claude model ID (see Anthropic docs for options) |
 | `HOST` | `0.0.0.0` | Server bind address |
-| `PORT` | `8000` | Server port |
+| `PORT` | `9247` | Server port |
 | `CHROMA_PERSIST_DIR` | `./chroma_data` | Path where ChromaDB stores its index |
 | `RAG_DOCS_DIR` | `./rag-docs` | Path to source documents |
 | `SESSION_EXPIRY_MINUTES` | `30` | Session timeout (minutes of inactivity) |
@@ -144,8 +144,8 @@ See `.env.example` for all settings. **Required**: `ANTHROPIC_API_KEY`, `APP_PAS
 
 ## Deployment
 
-1. **Local dev**: `pip install -e ".[dev]"` → `python scripts/ingest_docs.py` → `python -m lgac_assistant` → http://localhost:8000
-2. **Local container**: `docker-compose up --build` → http://localhost:8000
+1. **Local dev**: `pip install -e ".[dev]"` → `python scripts/ingest_docs.py` → `python -m lgac_assistant` → http://localhost:9247
+2. **Local container**: `docker-compose up --build` → http://localhost:9247
 3. **Cloud Run**: Build image → push to GCR → deploy with env vars → HTTPS URL for testers
 
 Cloud Run config: 1 CPU, 1GB RAM, scale 0-2 instances, `--allow-unauthenticated` (the app handles auth internally via the shared password).
@@ -192,17 +192,17 @@ For club IT staff planning a production deployment:
 cd ~/bin/LGAC-Virtual-Assistant
 source .venv/bin/activate
 python -m lgac_assistant
-# Server runs at http://localhost:8000
+# Server runs at http://localhost:9247
 # Password: lgac2026
 ```
 
-If port 8000 is already in use: `lsof -ti:8000 | xargs kill`
+If port 9247 is already in use: `lsof -ti:9247 | xargs kill`
 
 ### Manual QA Checklist (not yet completed)
 
 Run through these tests with the server running:
 
-1. **Password gate**: Open http://localhost:8000
+1. **Password gate**: Open http://localhost:9247
    - Enter wrong password → should show "Invalid password"
    - Enter correct password (`lgac2026`) → should enter chat interface
 2. **Club question**: "What is the dress code for golf?" → relevant answer citing dress code docs

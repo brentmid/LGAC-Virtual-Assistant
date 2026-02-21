@@ -10,5 +10,5 @@ docker-compose down 2>/dev/null || true
 echo "Building fresh container..."
 docker-compose up -d --build --no-cache
 
-echo "Done. Container is running at http://localhost:8000"
+echo "Done. Container is running at http://localhost:9247"
 echo "Logs: docker-compose logs -f"

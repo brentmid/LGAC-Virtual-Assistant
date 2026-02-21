@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_password: str = "changeme"
     claude_model: str = "claude-sonnet-4-0"
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 9247
     chroma_persist_dir: str = "./chroma_data"
     rag_docs_dir: str = "./rag-docs"
     session_expiry_minutes: int = 30

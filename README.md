@@ -64,7 +64,7 @@ This extracts text from all documents, splits it into chunks, and stores the emb
 python -m lgac_assistant
 ```
 
-Open http://localhost:8000, enter the shared password, and start asking questions.
+Open http://localhost:9247, enter the shared password, and start asking questions.
 
 ## Docker Deployment
 
@@ -154,7 +154,7 @@ All settings are configured via environment variables or a `.env` file. See `.en
 | `APP_PASSWORD` | Yes | `changeme` | Shared password for the testing phase |
 | `CLAUDE_MODEL` | No | `claude-sonnet-4-0` | Claude model ID |
 | `HOST` | No | `0.0.0.0` | Server bind address |
-| `PORT` | No | `8000` | Server port |
+| `PORT` | No | `9247` | Server port |
 | `CHROMA_PERSIST_DIR` | No | `./chroma_data` | ChromaDB storage path |
 | `RAG_DOCS_DIR` | No | `./rag-docs` | Source documents directory |
 | `SESSION_EXPIRY_MINUTES` | No | `30` | Session timeout (minutes of inactivity) |
@@ -183,7 +183,7 @@ ruff check src/ tests/    # Lint
 ### Example: Authenticate
 
 ```bash
-curl -X POST http://localhost:8000/api/auth \
+curl -X POST http://localhost:9247/api/auth \
   -H "Content-Type: application/json" \
   -d '{"password": "your-password"}'
 # → {"session_id": "abc123-..."}
@@ -192,7 +192,7 @@ curl -X POST http://localhost:8000/api/auth \
 ### Example: Ask a Question
 
 ```bash
-curl -X POST http://localhost:8000/api/chat \
+curl -X POST http://localhost:9247/api/chat \
   -H "Content-Type: application/json" \
   -d '{"session_id": "abc123-...", "message": "What is the dress code for golf?"}'
 # → {"answer": "...", "sources": [{"document": "TLGACDressCodeGRID2026.pdf", "excerpt": "..."}]}
