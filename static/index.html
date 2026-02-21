@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LGAC Virtual Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Password Gate -->
+        <div id="auth-screen" class="screen">
+            <div class="auth-card">
+                <h1>LGAC Virtual Assistant</h1>
+                <p>Welcome to The Landings Golf &amp; Athletic Club Virtual Assistant. Please enter the access password to continue.</p>
+                <form id="auth-form">
+                    <input type="password" id="password-input" placeholder="Enter password" autocomplete="off" required>
+                    <button type="submit">Sign In</button>
+                </form>
+                <p id="auth-error" class="error" hidden>Invalid password. Please try again.</p>
+            </div>
+        </div>
+
+        <!-- Chat Interface -->
+        <div id="chat-screen" class="screen" hidden>
+            <header>
+                <h1>LGAC Virtual Assistant</h1>
+                <span class="subtitle">Ask about club policies, operations, and more</span>
+            </header>
+            <div id="chat-messages">
+                <div class="message assistant">
+                    <div class="message-content">
+                        Welcome! I'm the LGAC Virtual Assistant. I can help you with questions about club policies, dress code, golf operations, dining, membership, and more. What would you like to know?
+                    </div>
+                </div>
+            </div>
+            <form id="chat-form">
+                <div class="input-row">
+                    <textarea id="chat-input" placeholder="Ask a question about the club..." rows="1" required></textarea>
+                    <button type="submit" id="send-btn">Send</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>
