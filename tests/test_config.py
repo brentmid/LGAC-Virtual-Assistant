@@ -5,7 +5,7 @@ from lgac_assistant.config import Settings
 
 def test_default_settings():
     settings = Settings(anthropic_api_key="test-key")
-    assert settings.port == 8000
+    assert settings.port == 9247
     assert settings.session_expiry_minutes == 30
     assert settings.rag_top_k == 5
     assert settings.chunk_size == 800
