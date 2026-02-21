@@ -181,3 +181,45 @@ For club IT staff planning a production deployment:
 7. **Cost management**: Set up Anthropic API usage alerts. At ~$0.01-0.03/query, 1000 queries/month ≈ $10-30/month in API costs.
 8. **Backup**: The ChromaDB index is disposable (rebuilt from source docs). Back up the source documents in `rag-docs/`.
 9. **Content moderation**: The system prompt prevents off-topic answers, but consider logging queries for review during the testing phase.
+
+## Current Status & Next Steps
+
+**Status as of 2026-02-21**: MVP code is complete, committed, and pushed to GitHub. All 29 tests pass. 194 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key. Server has been verified to start and respond on the health endpoint.
+
+### Resume Development
+
+```bash
+cd ~/bin/LGAC-Virtual-Assistant
+source .venv/bin/activate
+python -m lgac_assistant
+# Server runs at http://localhost:8000
+# Password: lgac2026
+```
+
+If port 8000 is already in use: `lsof -ti:8000 | xargs kill`
+
+### Manual QA Checklist (not yet completed)
+
+Run through these tests with the server running:
+
+1. **Password gate**: Open http://localhost:8000
+   - Enter wrong password → should show "Invalid password"
+   - Enter correct password (`lgac2026`) → should enter chat interface
+2. **Club question**: "What is the dress code for golf?" → relevant answer citing dress code docs
+3. **Follow-up with context**: "What about dining?" → maintains context, answers about dining dress code
+4. **Off-topic question**: "What's the weather today?" → politely declines
+5. **Specific policy**: "What are the annual dues?" → cites DuesSheet PDF
+6. **Vague question**: "Tell me about the club" → general overview from brochure docs
+7. **Unknown topic**: "What is the wifi password?" → admits it doesn't know, suggests contacting club
+
+### After QA Passes
+
+1. **Deploy to Cloud Run** (Issue #19) — gets an HTTPS URL to share with testers
+2. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
+3. **Prioritize post-MVP** — issues #15-21 on GitHub, driven by tester feedback
+
+### GitHub Issues
+
+- **Epic**: #1 (tracking issue)
+- **MVP** (#2-14): all closed/completed
+- **Post-MVP** (#15-21): open — streaming, production auth, persistent sessions, rate limiting, Cloud Run deploy, admin doc upload, monitoring
