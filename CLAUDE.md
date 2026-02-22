@@ -291,7 +291,15 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 
 ### After QA Passes
 
-1. **Deploy to Cloud Run** (#19) — gets an HTTPS URL to share with testers
+1. **Deploy to Cloud Run (#19 + #24)** — full plan documented in `DEPLOYMENT_PLAN.md`. Summary:
+   - Brent creates a GCP project, enables billing, authenticates `gcloud` with Workspace account
+   - Claude adds HTTPS redirect middleware (~20 lines in `app.py`) + HSTS header
+   - Build image via Cloud Build (remote, avoids ARM64→amd64 cross-compile)
+   - Secrets (API key, passwords) go in Google Secret Manager
+   - Deploy to Cloud Run: 1 CPU, 1GB RAM, 0-2 instances, `--allow-unauthenticated`
+   - Cloud Run provides automatic HTTPS on `*.run.app` domain (solves #24)
+   - Estimated GCP cost: < $5/month for MVP tester traffic
+   - Tools ready: `gcloud` v533.0.0 installed, `brew` available for anything else
 2. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
 
 ### Open GitHub Issues
