@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     rag_top_k: int = 5
     chunk_size: int = 800
     chunk_overlap: int = 100
+    admin_password: str = ""
+    feedback_file: str = "./feedback.json"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

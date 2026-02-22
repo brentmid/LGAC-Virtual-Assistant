@@ -309,13 +309,21 @@ header .subtitle {
 }
 
 .disclaimer {
-    padding: 4px 20px 12px;
+    padding: 4px 20px 4px;
     font-size: 0.78rem;
     color: var(--text-light);
     text-align: center;
     line-height: 1.4;
     background: var(--card-bg);
     flex-shrink: 0;
+}
+
+.disclaimer:last-of-type {
+    padding-bottom: 12px;
+}
+
+.disclaimer.feedback-hint {
+    padding-top: 0;
 }
 
 .input-row {
