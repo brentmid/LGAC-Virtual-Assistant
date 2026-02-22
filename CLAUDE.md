@@ -29,19 +29,21 @@ This is an MVP proof-of-concept intended to get in front of testers quickly, the
 ```
 src/lgac_assistant/     # Python package
   config.py             # Pydantic settings from .env
-  models.py             # Data models (ChatRequest, ChatResponse, etc.)
+  models.py             # Data models (ChatRequest, ChatResponse, Feedback*, etc.)
   ingest.py             # PDF/DOCX extraction + chunking
   vectorstore.py        # ChromaDB wrapper
   rag.py                # Retrieval + Claude API call
   prompts.py            # System prompt, RAG template, guardrails
   sessions.py           # In-memory session manager with expiry
+  feedback.py           # JSON file-based feedback storage
   app.py                # FastAPI routes + static files
   __main__.py           # Uvicorn entry point
-static/                 # Frontend (index.html, style.css, app.js)
+static/                 # Frontend (index.html, style.css, app.js, admin.html)
 scripts/ingest_docs.py  # CLI to build vector index
-tests/                  # Test suite (38 tests)
+tests/                  # Test suite (51 tests)
 rag-docs/               # Club documents (gitignored — not in repo)
 chroma_data/            # Persisted vector index (gitignored — built from docs)
+feedback.json           # Feedback records (gitignored — created at runtime)
 ```
 
 ## Common Commands
@@ -89,8 +91,12 @@ ruff check src/ tests/
 |--------|------|---------|
 | `POST` | `/api/auth` | Validate password, return `session_id` |
 | `POST` | `/api/chat` | Send message, get RAG response + source citations |
+| `POST` | `/api/feedback` | Submit feedback on the last Q&A pair |
+| `POST` | `/api/admin/auth` | Admin login, return admin `session_id` |
+| `GET` | `/api/admin/feedback` | Retrieve all feedback records (admin auth required) |
 | `GET` | `/api/health` | Health check — returns status and indexed document count |
 | `GET` | `/` | Serve the frontend chat interface |
+| `GET` | `/admin` | Serve the admin feedback review page |
 
 ### Request/Response Examples
 
@@ -108,6 +114,27 @@ ruff check src/ tests/
 {"session_id": "uuid-here", "message": "What is the dress code for golf?"}
 // → 200: {"answer": "...", "sources": [{"document": "TLGACDressCodeGRID2026.pdf", "excerpt": "..."}]}
 // → 401: {"detail": "Invalid or expired session"}
+```
+
+**Feedback:**
+```json
+// POST /api/feedback
+{"session_id": "uuid-here", "feedback": "Great answer, very helpful!"}
+// → 200: {"message": "Thank you for your feedback!"}
+// → 401: {"detail": "Invalid or expired session"}
+```
+
+**Admin:**
+```json
+// POST /api/admin/auth
+{"password": "admin-password"}
+// → 200: {"session_id": "admin-uuid"}
+// → 401: {"detail": "Invalid password"}
+// → 403: {"detail": "Admin access is disabled"}
+
+// GET /api/admin/feedback (header: X-Admin-Session: admin-uuid)
+// → 200: [{"timestamp": "...", "question": "...", "response": "...", "feedback": "...", "session_id": "..."}]
+// → 401: {"detail": "Admin authentication required"}
 ```
 
 ## RAG Pipeline
@@ -142,6 +169,8 @@ See `.env.example` for all settings. **Required**: `ANTHROPIC_API_KEY`, `APP_PAS
 | `RAG_TOP_K` | `5` | Number of document chunks to retrieve per query |
 | `CHUNK_SIZE` | `800` | Target chunk size in approximate tokens |
 | `CHUNK_OVERLAP` | `100` | Overlap between consecutive chunks in approximate tokens |
+| `ADMIN_PASSWORD` | *(empty — disabled)* | Password for the admin feedback review page |
+| `FEEDBACK_FILE` | `./feedback.json` | Path to the feedback storage file |
 
 ## Deployment
 
@@ -155,7 +184,7 @@ Cloud Run config: 1 CPU, 1GB RAM, scale 0-2 instances, `--allow-unauthenticated`
 
 - 13 source documents (11 PDF, 2 DOCX)
 - 203 chunks indexed in ChromaDB
-- 38 tests passing
+- 51 tests passing
 - Expected cost per query: ~$0.01-0.03 (Claude Sonnet 4.6 pricing)
 
 ## Known Limitations (MVP)
@@ -185,7 +214,7 @@ For club IT staff planning a production deployment:
 
 ## Current Status & Next Steps
 
-**Status as of 2026-02-21**: MVP code is complete and functionally verified. All 38 tests pass. 203 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Auth screen and chat layout CSS bugs fixed. PDF table extraction for rotated/reversed text fixed — dress code grid now extracts with correct venue names and structured item-venue mappings. Venue-specific dress code questions (e.g., "What is the dress code for the Steakhouse?", "Can I wear cargo shorts to Palmer's?") now return accurate answers. Ready for Cloud Run deployment.
+**Status as of 2026-02-22**: MVP code is complete with feedback collection feature. All 51 tests pass. 203 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Testers can submit feedback on answers by typing `feedback:` followed by comments. Admin review page at `/admin` (requires `ADMIN_PASSWORD` env var). Ready for Cloud Run deployment.
 
 ### Resume Development
 
@@ -241,7 +270,14 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 - Expected: admits it doesn't know, suggests contacting the club directly
 - Check: should NOT fabricate an answer
 
-#### Test 8: Markdown Rendering
+#### Test 8: Feedback Submission
+- Ask any club question first (e.g., "What is the dress code for golf?")
+- Then type: **feedback: Great answer, very helpful!**
+- Expected: feedback message shows as user message, confirmation "Thank you for your feedback!" shows as assistant message
+- Check: message was NOT sent to Claude (no typing indicator, instant response)
+- Check: visit `/admin`, authenticate with `ADMIN_PASSWORD`, verify the feedback appears in the table with the correct question and response
+
+#### Test 9: Markdown Rendering
 - During any of the above tests, verify that assistant responses render markdown properly
 - Headings should appear as headings, bold text as bold, bullet lists as lists
 - User messages should still display as plain text (no markdown rendering)
@@ -249,15 +285,13 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 ### After QA Passes
 
 1. **Deploy to Cloud Run** (#19) — gets an HTTPS URL to share with testers
-2. **Add feedback mechanism** (#32) — let testers report issues inline
-3. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
+2. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
 
 ### Open GitHub Issues
 
 | # | Title | Priority | Category |
 |---|-------|----------|----------|
 | 29 | Improve document parsing pipeline for complex layouts | High | Enhancement |
-| 32 | Add user feedback collection and admin review page | Medium | Feature |
 | 30 | Add OCR support for image-based documents | Medium | Enhancement |
 | 27 | Add Playwright browser tests for auth flow and chat UI | Medium | Testing |
 | 24 | Require HTTPS before cloud deployment | Medium | Infrastructure |
@@ -268,6 +302,10 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 | 17 | Persistent session storage | Low | Feature |
 | 16 | Production authentication (OAuth/SSO) | Low | Feature |
 | 15 | Streaming responses | Low | Enhancement |
+
+### Completed (2026-02-22)
+
+- Added user feedback collection (#32) — testers type `feedback:` prefix in chat to submit feedback on the last Q&A pair; stored to `feedback.json`; admin review page at `/admin` with password auth; 13 new tests
 
 ### Completed (2026-02-21)
 

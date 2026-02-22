@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LGAC Admin - Feedback Review</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #1a5632;
+            --primary-light: #2a7a4a;
+            --bg: #f5f5f0;
+            --card-bg: #ffffff;
+            --text: #333333;
+            --text-light: #666666;
+            --border: #ddd;
+            --error: #c0392b;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+        header {
+            background: var(--primary);
+            color: white;
+            padding: 16px 24px;
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+        }
+        header h1 { font-size: 1.2rem; }
+        header .subtitle { font-size: 0.85rem; opacity: 0.8; }
+        .auth-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 420px;
+            margin: 60px auto;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .auth-card h2 { color: var(--primary); margin-bottom: 20px; }
+        .auth-card form { display: flex; flex-direction: column; gap: 12px; }
+        .auth-card input {
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+        }
+        .auth-card input:focus { border-color: var(--primary); }
+        .auth-card button, .refresh-btn {
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .auth-card button:hover, .refresh-btn:hover { background: var(--primary-light); }
+        .error { color: var(--error); font-size: 0.9rem; margin-top: 8px; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .toolbar h2 { color: var(--primary); }
+        .count { color: var(--text-light); font-size: 0.9rem; }
+        .empty { text-align: center; color: var(--text-light); padding: 40px; }
+        table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow); }
+        th { background: var(--primary); color: white; text-align: left; padding: 12px 16px; font-size: 0.85rem; }
+        td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 0.9rem; line-height: 1.5; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f9f9f5; }
+        .cell-timestamp { white-space: nowrap; min-width: 140px; color: var(--text-light); font-size: 0.82rem; }
+        .cell-question { max-width: 250px; }
+        .cell-response { max-width: 300px; }
+        .cell-feedback { max-width: 250px; }
+        .truncated { max-height: 80px; overflow: hidden; position: relative; cursor: pointer; }
+        .truncated.expanded { max-height: none; }
+        .truncated:not(.expanded)::after {
+            content: "click to expand";
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            text-align: center;
+            padding: 4px;
+            background: linear-gradient(transparent, var(--card-bg));
+            font-size: 0.75rem;
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>LGAC Admin</h1>
+        <span class="subtitle">Feedback Review</span>
+    </header>
+
+    <div class="container">
+        <div id="admin-auth" class="auth-card">
+            <h2>Admin Login</h2>
+            <form id="admin-auth-form">
+                <input type="password" id="admin-password" placeholder="Admin password" autocomplete="off" required>
+                <button type="submit">Sign In</button>
+            </form>
+            <p id="admin-auth-error" class="error" hidden>Invalid password.</p>
+        </div>
+
+        <div id="feedback-panel" hidden>
+            <div class="toolbar">
+                <div>
+                    <h2>Feedback</h2>
+                    <span class="count" id="feedback-count"></span>
+                </div>
+                <button class="refresh-btn" id="refresh-btn">Refresh</button>
+            </div>
+            <div id="feedback-content"></div>
+        </div>
+    </div>
+
+    <script>
+        let adminSessionId = null;
+
+        document.getElementById("admin-auth-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const errEl = document.getElementById("admin-auth-error");
+            errEl.hidden = true;
+            const password = document.getElementById("admin-password").value;
+
+            try {
+                const res = await fetch("/api/admin/auth", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ password }),
+                });
+                if (!res.ok) {
+                    errEl.hidden = false;
+                    return;
+                }
+                const data = await res.json();
+                adminSessionId = data.session_id;
+                document.getElementById("admin-auth").hidden = true;
+                document.getElementById("feedback-panel").hidden = false;
+                loadFeedback();
+            } catch (err) {
+                errEl.textContent = "Connection error.";
+                errEl.hidden = false;
+            }
+        });
+
+        document.getElementById("refresh-btn").addEventListener("click", loadFeedback);
+
+        async function loadFeedback() {
+            const content = document.getElementById("feedback-content");
+            const countEl = document.getElementById("feedback-count");
+
+            try {
+                const res = await fetch("/api/admin/feedback", {
+                    headers: { "X-Admin-Session": adminSessionId },
+                });
+                if (res.status === 401) {
+                    content.innerHTML = '<p class="empty">Session expired. Refresh the page.</p>';
+                    return;
+                }
+                const records = await res.json();
+                countEl.textContent = records.length + " record" + (records.length !== 1 ? "s" : "");
+
+                if (records.length === 0) {
+                    content.innerHTML = '<p class="empty">No feedback yet.</p>';
+                    return;
+                }
+
+                let html = "<table><thead><tr><th>Timestamp</th><th>Question</th><th>Response</th><th>Feedback</th></tr></thead><tbody>";
+                for (const r of records) {
+                    const ts = new Date(r.timestamp).toLocaleString();
+                    html += "<tr>";
+                    html += '<td class="cell-timestamp">' + esc(ts) + "</td>";
+                    html += '<td class="cell-question"><div class="truncated">' + esc(r.question) + "</div></td>";
+                    html += '<td class="cell-response"><div class="truncated">' + esc(r.response) + "</div></td>";
+                    html += '<td class="cell-feedback">' + esc(r.feedback) + "</td>";
+                    html += "</tr>";
+                }
+                html += "</tbody></table>";
+                content.innerHTML = html;
+
+                content.querySelectorAll(".truncated").forEach((el) => {
+                    el.addEventListener("click", () => el.classList.toggle("expanded"));
+                });
+            } catch (err) {
+                content.innerHTML = '<p class="empty">Error loading feedback.</p>';
+            }
+        }
+
+        function esc(text) {
+            const d = document.createElement("div");
+            d.textContent = text || "";
+            return d.innerHTML;
+        }
+    </script>
+</body>
+</html>
