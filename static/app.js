@@ -105,7 +105,10 @@ function appendMessage(role, content, sources) {
   const msg = document.createElement("div");
   msg.className = `message ${role}`;
 
-  let html = `<div class="message-content">${escapeHtml(content)}`;
+  const rendered = role === "assistant"
+    ? DOMPurify.sanitize(marked.parse(content))
+    : escapeHtml(content);
+  let html = `<div class="message-content">${rendered}`;
 
   if (sources && sources.length > 0) {
     html += `<div class="sources"><strong>Sources:</strong><ul>`;
