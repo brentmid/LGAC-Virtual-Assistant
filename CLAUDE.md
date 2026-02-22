@@ -17,7 +17,7 @@ This is an MVP proof-of-concept intended to get in front of testers quickly, the
 | LLM | Claude Sonnet 4.6 (`claude-sonnet-4-6`) | Best cost/quality balance for document Q&A; upgraded from Sonnet 4 on 2026-02-21 |
 | Vector store | ChromaDB (embedded) | No separate database service needed; persists to disk; good enough for <1000 chunks |
 | Embeddings | `all-MiniLM-L6-v2` (ChromaDB default) | Free, runs locally, no extra API key; adequate for semantic search at this scale |
-| PDF extraction | PyMuPDF + pdfplumber fallback | PyMuPDF is fast for text-heavy PDFs; pdfplumber handles tables and complex layouts |
+| PDF extraction | PyMuPDF + pdfplumber fallback | PyMuPDF is fast for text-heavy PDFs; pdfplumber handles tables, complex layouts, and rotated text |
 | DOCX extraction | python-docx | Standard, reliable Word document parsing |
 | Frontend | Vanilla HTML/CSS/JS | No build step, no framework overhead for a single-page chat UI |
 | Container | Docker | Standard containerization for reproducible deployment |
@@ -38,7 +38,7 @@ src/lgac_assistant/     # Python package
   __main__.py           # Uvicorn entry point
 static/                 # Frontend (index.html, style.css, app.js)
 scripts/ingest_docs.py  # CLI to build vector index
-tests/                  # Test suite (29 tests)
+tests/                  # Test suite (38 tests)
 rag-docs/               # Club documents (gitignored — not in repo)
 chroma_data/            # Persisted vector index (gitignored — built from docs)
 ```
@@ -76,7 +76,7 @@ ruff check src/ tests/
 
 5. **Session state in memory** — A Python dict maps `session_id` → conversation history. Sessions expire after 30 minutes of inactivity. All sessions are lost on container restart. This is acceptable for MVP but would need Redis or a database for production.
 
-6. **PyMuPDF with pdfplumber fallback** — PyMuPDF is tried first (fast, handles most PDFs well). If it yields fewer than 100 characters of text (indicating a scanned/image-heavy PDF), pdfplumber is used instead (slower but handles tables and complex layouts better).
+6. **PyMuPDF with pdfplumber fallback** — PyMuPDF is tried first (fast, handles most PDFs well). Falls back to pdfplumber if PyMuPDF yields fewer than 100 characters, produces reversed text (from rotated column headers), or outputs orphaned grid data (standalone Y/N lines without column context). pdfplumber's table extractor detects reversed headers, fixes them, and formats tables as structured `Item | Venue: Value` output for better RAG retrieval.
 
 7. **Character-based chunking with boundary awareness** — Chunks target ~800 tokens (~3200 characters) with 100-token overlap. The chunker tries to split at paragraph boundaries first, then sentence boundaries, to avoid breaking mid-thought. This is a pragmatic approach; section-aware chunking would be better but requires document-specific parsing.
 
@@ -121,7 +121,7 @@ ruff check src/ tests/
    - Embed the user's question
    - Retrieve top-5 most similar chunks from ChromaDB
    - Build prompt: system prompt + retrieved context + conversation history + question
-   - Call Claude Sonnet 4 API
+   - Call Claude Sonnet 4.6 API
    - Return answer text + deduplicated source document citations
 
 ## Environment Variables
@@ -153,9 +153,9 @@ Cloud Run config: 1 CPU, 1GB RAM, scale 0-2 instances, `--allow-unauthenticated`
 ## Current Stats (MVP)
 
 - 13 source documents (11 PDF, 2 DOCX)
-- 194 chunks indexed in ChromaDB
-- 29 tests passing
-- Expected cost per query: ~$0.01-0.03 (Claude Sonnet 4 pricing)
+- 203 chunks indexed in ChromaDB
+- 38 tests passing
+- Expected cost per query: ~$0.01-0.03 (Claude Sonnet 4.6 pricing)
 
 ## Known Limitations (MVP)
 
@@ -184,7 +184,7 @@ For club IT staff planning a production deployment:
 
 ## Current Status & Next Steps
 
-**Status as of 2026-02-21**: MVP code is complete. All 29 tests pass. 194 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Auth screen and chat layout CSS bugs fixed. Manual QA in progress — needs to be completed.
+**Status as of 2026-02-21**: MVP code is complete and functionally verified. All 38 tests pass. 203 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Auth screen and chat layout CSS bugs fixed. PDF table extraction for rotated/reversed text fixed — dress code grid now extracts with correct venue names and structured item-venue mappings. Venue-specific dress code questions (e.g., "What is the dress code for the Steakhouse?", "Can I wear cargo shorts to Palmer's?") now return accurate answers. Ready for Cloud Run deployment.
 
 ### Resume Development
 
@@ -219,8 +219,7 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 
 #### Test 3: Follow-up with Context
 - Ask (immediately after Test 2): **"What about dining?"**
-- Expected: maintains conversation context, answers about dining dress code
-- **Known issue**: dining dress code answers may be incomplete due to garbled PDF table extraction (#31). The dress code grid PDF has rotated column headers that extract backwards. If the answer says it can't find dining info, that's the known bug, not a model failure.
+- Expected: maintains conversation context, answers about dining dress code with venue-specific details (e.g., Palmer's Steakhouse vs. The Deck have different rules)
 
 #### Test 4: Off-topic Question
 - Ask: **"What's the weather today?"**
@@ -247,17 +246,15 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 
 ### After QA Passes
 
-1. **Fix dress code table extraction** (#31, high priority) — dining dress code questions fail due to garbled PDF parsing
-2. **Deploy to Cloud Run** (#19) — gets an HTTPS URL to share with testers
-3. **Add feedback mechanism** (#32) — let testers report issues inline
-4. **Render markdown in responses** (#28) — improve readability
-5. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
+1. **Deploy to Cloud Run** (#19) — gets an HTTPS URL to share with testers
+2. **Add feedback mechanism** (#32) — let testers report issues inline
+3. **Render markdown in responses** (#28) — improve readability
+4. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
 
 ### Open GitHub Issues
 
 | # | Title | Priority | Category |
 |---|-------|----------|----------|
-| 31 | Fix table extraction for dress code grid PDF | High | Bug |
 | 29 | Improve document parsing pipeline for complex layouts | High | Enhancement |
 | 32 | Add user feedback collection and admin review page | Medium | Feature |
 | 28 | Render markdown in assistant responses as HTML | Medium | Enhancement |
@@ -272,11 +269,13 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 | 16 | Production authentication (OAuth/SSO) | Low | Feature |
 | 15 | Streaming responses | Low | Enhancement |
 
-### Completed This Session (2026-02-21)
+### Completed (2026-02-21)
 
 - Changed default port from 8000 to 9247 (#22, PR #23)
 - Fixed auth screen not hiding after login (#25, PR #26)
 - Fixed chat input layout — full-width spanning (#25, PR #33)
-- Upgraded LLM from Claude Sonnet 4 to Sonnet 4.6
+- Upgraded LLM from Claude Sonnet 4 to Sonnet 4.6 (PR #35)
+- Fixed PDF table extraction for rotated/reversed column headers (#31, PR #36) — dress code grid now extracts with correct venue names; added reversed-text detection, quality-based PyMuPDF→pdfplumber fallthrough, and structured table formatting
+- Rebuilt vector index: 194 → 203 chunks (improved extraction for 3 PDFs containing grid tables)
 - Verified Playwright MCP browser testing works (basis for #27)
 - Created issues #24, #27, #28, #29, #30, #31, #32
