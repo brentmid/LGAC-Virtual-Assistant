@@ -79,11 +79,15 @@ ruff check src/ tests/
 
 5. **Session state in memory** — A Python dict maps `session_id` → conversation history. Sessions expire after 30 minutes of inactivity. All sessions are lost on container restart. This is acceptable for MVP but would need Redis or a database for production.
 
-6. **PyMuPDF with pdfplumber fallback** — PyMuPDF is tried first (fast, handles most PDFs well). Falls back to pdfplumber if PyMuPDF yields fewer than 100 characters, produces reversed text (from rotated column headers), or outputs orphaned grid data (standalone Y/N lines without column context). pdfplumber's table extractor detects reversed headers, fixes them, and formats tables as structured `Item | Venue: Value` output for better RAG retrieval.
+6. **PyMuPDF with pdfplumber fallback** — PyMuPDF is tried first (fast, handles most PDFs well). Falls back to pdfplumber if PyMuPDF yields fewer than 100 characters, produces reversed text (from rotated column headers), or outputs orphaned grid data (standalone Y/N lines without column context). pdfplumber's table extractor detects reversed headers, fixes them, and formats tables as structured `Item | Venue: Value` output for better RAG retrieval. Layout-artifact tables (empty headers, single column, >80% empty cells) are filtered out. Normal tables are formatted with header context (`Header: Value | ...`) instead of raw cell dumps.
 
-7. **Character-based chunking with boundary awareness** — Chunks target ~800 tokens (~3200 characters) with 100-token overlap. The chunker tries to split at paragraph boundaries first, then sentence boundaries, to avoid breaking mid-thought. This is a pragmatic approach; section-aware chunking would be better but requires document-specific parsing.
+7. **Section-aware chunking with boundary detection** — Chunks target ~800 tokens (~3200 characters) with 100-token overlap. The chunker tries to split at section headings first, then paragraph boundaries, then sentence boundaries. ALL-CAPS section headings are detected and prepended in `[BRACKETS]` to chunks that don't naturally start with their heading. Section names are stored in chunk metadata for retrieval context.
 
-8. **No streaming** — The MVP returns complete responses rather than streaming tokens. This simplifies the implementation. Streaming can be added later for better perceived performance.
+8. **DOCX table extraction** — `extract_docx()` iterates document body children in order (paragraphs and tables interleaved) rather than reading only paragraphs. Tables are formatted as `Header: Value | ...` with merged-cell deduplication.
+
+9. **Repeated header/footer removal** — After text extraction, lines appearing more than 3 times (≥10 chars) are removed except for the first occurrence. Duplicate decorative dividers are also collapsed. This prevents headers like "RULES & REGULATIONS" (43 occurrences) from polluting chunk content and retrieval.
+
+10. **No streaming** — The MVP returns complete responses rather than streaming tokens. This simplifies the implementation. Streaming can be added later for better perceived performance.
 
 ## API Endpoints
 
@@ -141,9 +145,13 @@ ruff check src/ tests/
 
 1. **Offline ingestion** (`scripts/ingest_docs.py`):
    - Scan `rag-docs/` for PDF and DOCX files
-   - Extract text (PyMuPDF → pdfplumber fallback for PDFs; python-docx for DOCX)
-   - Chunk text (~800 tokens per chunk, 100-token overlap, paragraph-boundary-aware)
+   - Extract text (PyMuPDF → pdfplumber fallback for PDFs; python-docx with table support for DOCX)
+   - Remove repeated headers/footers (lines appearing >3 times)
+   - Filter layout-artifact tables; format real tables as `Header: Value | ...`
+   - Chunk text (~800 tokens per chunk, 100-token overlap, section/paragraph/sentence-boundary-aware)
+   - Prepend section headings to chunks that don't naturally contain them
    - Embed chunks using `all-MiniLM-L6-v2` and store in ChromaDB
+   - Print `IngestionMetrics` summary (documents, chunks, headers removed, sections detected, etc.)
 
 2. **Query time** (`rag.py`):
    - Embed the user's question
@@ -183,8 +191,8 @@ Cloud Run config: 1 CPU, 1GB RAM, scale 0-2 instances, `--allow-unauthenticated`
 ## Current Stats (MVP)
 
 - 13 source documents (11 PDF, 2 DOCX)
-- 203 chunks indexed in ChromaDB
-- 51 tests passing
+- 205 chunks indexed in ChromaDB
+- 66 tests passing
 - Expected cost per query: ~$0.01-0.03 (Claude Sonnet 4.6 pricing)
 
 ## Known Limitations (MVP)
@@ -196,7 +204,6 @@ Cloud Run config: 1 CPU, 1GB RAM, scale 0-2 instances, `--allow-unauthenticated`
 - **No rate limiting**: A user could send unlimited requests. Cloud Run's max-instances cap provides some protection.
 - **No HTTPS in local dev**: Only HTTPS when deployed to Cloud Run.
 - **Chunking is approximate**: Token counts are estimated via character count (~4 chars/token). Not exact.
-- **No section-aware parsing**: Chunks may split across document sections. Works well enough for the current documents.
 
 ## Production Considerations
 
@@ -214,7 +221,7 @@ For club IT staff planning a production deployment:
 
 ## Current Status & Next Steps
 
-**Status as of 2026-02-22**: MVP code is complete with feedback collection feature. All 51 tests pass. 203 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Testers can submit feedback on answers by typing `feedback:` followed by comments. Admin review page at `/admin` (requires `ADMIN_PASSWORD` env var). Ready for Cloud Run deployment.
+**Status as of 2026-02-22**: MVP code is complete with feedback collection and improved document parsing pipeline. All 66 tests pass. 205 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Testers can submit feedback on answers by typing `feedback:` followed by comments. Admin review page at `/admin` (requires `ADMIN_PASSWORD` env var). Ready for Cloud Run deployment.
 
 ### Resume Development
 
@@ -291,7 +298,7 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 
 | # | Title | Priority | Category |
 |---|-------|----------|----------|
-| 29 | Improve document parsing pipeline for complex layouts | High | Enhancement |
+| ~~29~~ | ~~Improve document parsing pipeline for complex layouts~~ | ~~High~~ | ~~Done~~ |
 | 30 | Add OCR support for image-based documents | Medium | Enhancement |
 | 27 | Add Playwright browser tests for auth flow and chat UI | Medium | Testing |
 | 24 | Require HTTPS before cloud deployment | Medium | Infrastructure |
@@ -305,6 +312,7 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 
 ### Completed (2026-02-22)
 
+- Improved document parsing pipeline (#29) — header/footer removal (92 lines cleaned across 6 docs), DOCX table extraction (Hours of Operations now 2 chunks instead of 1), layout table filtering, normal table formatting with header context, section-aware chunking with heading prepend and metadata; 15 new tests; vector index rebuilt: 203 → 205 chunks
 - Added user feedback collection (#32) — testers type `feedback:` prefix in chat to submit feedback on the last Q&A pair; stored to `feedback.json`; admin review page at `/admin` with password auth; 13 new tests
 
 ### Completed (2026-02-21)

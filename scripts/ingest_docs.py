@@ -32,7 +32,7 @@ def main():
         sys.exit(1)
 
     # Process documents into chunks
-    chunks = ingest_documents(
+    chunks, metrics = ingest_documents(
         docs_dir,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
@@ -49,6 +49,7 @@ def main():
 
     logger.info(f"Ingestion complete: {added} chunks indexed")
     logger.info(f"Vector store saved to: {persist_dir}")
+    logger.info(f"\n--- Ingestion Metrics ---\n{metrics.summary()}")
 
     # Quick verification
     test_query = "dress code"
