@@ -19,6 +19,7 @@ This is an MVP proof-of-concept intended to get in front of testers quickly, the
 | Embeddings | `all-MiniLM-L6-v2` (ChromaDB default) | Free, runs locally, no extra API key; adequate for semantic search at this scale |
 | PDF extraction | PyMuPDF + pdfplumber fallback | PyMuPDF is fast for text-heavy PDFs; pdfplumber handles tables, complex layouts, and rotated text |
 | DOCX extraction | python-docx | Standard, reliable Word document parsing |
+| Markdown rendering | marked.js + DOMPurify (CDN) | Renders assistant markdown as HTML; DOMPurify sanitizes for XSS |
 | Frontend | Vanilla HTML/CSS/JS | No build step, no framework overhead for a single-page chat UI |
 | Container | Docker | Standard containerization for reproducible deployment |
 | Deployment | Google Cloud Run | HTTPS out of the box, scale-to-zero (no cost when idle), simple deploy |
@@ -240,16 +241,16 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 - Expected: admits it doesn't know, suggests contacting the club directly
 - Check: should NOT fabricate an answer
 
-#### Test 8: Markdown Rendering (known issue)
-- During any of the above tests, observe if responses contain raw markdown (`**bold**`, `- bullets`, etc.)
-- **Known issue**: markdown is not rendered as HTML (#28)
+#### Test 8: Markdown Rendering
+- During any of the above tests, verify that assistant responses render markdown properly
+- Headings should appear as headings, bold text as bold, bullet lists as lists
+- User messages should still display as plain text (no markdown rendering)
 
 ### After QA Passes
 
 1. **Deploy to Cloud Run** (#19) — gets an HTTPS URL to share with testers
 2. **Add feedback mechanism** (#32) — let testers report issues inline
-3. **Render markdown in responses** (#28) — improve readability
-4. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
+3. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
 
 ### Open GitHub Issues
 
@@ -257,7 +258,6 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 |---|-------|----------|----------|
 | 29 | Improve document parsing pipeline for complex layouts | High | Enhancement |
 | 32 | Add user feedback collection and admin review page | Medium | Feature |
-| 28 | Render markdown in assistant responses as HTML | Medium | Enhancement |
 | 30 | Add OCR support for image-based documents | Medium | Enhancement |
 | 27 | Add Playwright browser tests for auth flow and chat UI | Medium | Testing |
 | 24 | Require HTTPS before cloud deployment | Medium | Infrastructure |
@@ -279,3 +279,4 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 - Rebuilt vector index: 194 → 203 chunks (improved extraction for 3 PDFs containing grid tables)
 - Verified Playwright MCP browser testing works (basis for #27)
 - Created issues #24, #27, #28, #29, #30, #31, #32
+- Rendered markdown in assistant responses as HTML (#28) — added marked.js + DOMPurify via CDN; assistant messages render headings, lists, bold/italic, code blocks; user messages stay plain text; XSS-safe via DOMPurify sanitization
