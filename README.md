@@ -80,6 +80,10 @@ The Docker image builds the document index at image build time. The `rag-docs/` 
 
 ## Google Cloud Run Deployment
 
+Cloud Run provides automatic HTTPS with managed TLS certificates and scale-to-zero pricing. The app includes HTTPS redirect middleware that enforces HTTPS in production while allowing HTTP for local development.
+
+See `DEPLOYMENT_PLAN.md` for the full step-by-step deployment guide.
+
 ### First-Time Setup
 
 ```bash
@@ -88,52 +92,80 @@ gcloud auth login
 gcloud config set project YOUR_PROJECT_ID
 
 # Enable required APIs
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com
+gcloud services enable \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  cloudbuild.googleapis.com \
+  secretmanager.googleapis.com
+
+# Create Artifact Registry repository
+gcloud artifacts repositories create lgac-assistant \
+  --repository-format=docker \
+  --location=us-central1 \
+  --description="LGAC Virtual Assistant Docker images"
 ```
 
-### Deploy
-
-```bash
-# Build and push the image
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/lgac-assistant
-
-# Deploy to Cloud Run
-gcloud run deploy lgac-assistant \
-  --image gcr.io/YOUR_PROJECT_ID/lgac-assistant \
-  --platform managed \
-  --region us-east1 \
-  --memory 1Gi \
-  --cpu 1 \
-  --min-instances 0 \
-  --max-instances 2 \
-  --allow-unauthenticated
-```
-
-### Set Environment Variables (Secrets)
+### Store Secrets
 
 Do **not** pass API keys on the command line. Use Google Cloud Secret Manager:
 
 ```bash
-# Create secrets
-echo -n "sk-ant-YOUR-KEY" | gcloud secrets create anthropic-api-key --data-file=-
-echo -n "your-password" | gcloud secrets create app-password --data-file=-
+echo -n "YOUR-API-KEY" | gcloud secrets create anthropic-api-key --data-file=-
+echo -n "YOUR-APP-PASSWORD" | gcloud secrets create app-password --data-file=-
+echo -n "YOUR-ADMIN-PASSWORD" | gcloud secrets create admin-password --data-file=-
 
-# Grant Cloud Run access
-gcloud secrets add-iam-policy-binding anthropic-api-key \
-  --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+# Grant Cloud Run access to secrets
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')
 
-gcloud secrets add-iam-policy-binding app-password \
-  --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
-
-# Deploy with secrets
-gcloud run deploy lgac-assistant \
-  --image gcr.io/YOUR_PROJECT_ID/lgac-assistant \
-  --update-secrets="ANTHROPIC_API_KEY=anthropic-api-key:latest,APP_PASSWORD=app-password:latest"
+for SECRET in anthropic-api-key app-password admin-password; do
+  gcloud secrets add-iam-policy-binding $SECRET \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+done
 ```
 
-Cloud Run provides HTTPS automatically. The app handles authentication internally via the shared password — `--allow-unauthenticated` lets anyone reach the login page.
+### Build and Deploy
+
+The image is built remotely via Cloud Build (avoids ARM64/amd64 cross-compile issues on Apple Silicon). The `rag-docs/` directory must be present locally — it's uploaded to Cloud Build for index creation.
+
+```bash
+# Build and push image to Artifact Registry
+gcloud builds submit \
+  --tag us-central1-docker.pkg.dev/$(gcloud config get-value project)/lgac-assistant/lgac-assistant:latest \
+  --timeout=1200
+
+# Deploy to Cloud Run
+gcloud run deploy lgac-assistant \
+  --image us-central1-docker.pkg.dev/$(gcloud config get-value project)/lgac-assistant/lgac-assistant:latest \
+  --region us-central1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --cpu 1 \
+  --memory 1Gi \
+  --min-instances 0 \
+  --max-instances 2 \
+  --port 9247 \
+  --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,APP_PASSWORD=app-password:latest,ADMIN_PASSWORD=admin-password:latest"
+```
+
+`--allow-unauthenticated` lets anyone reach the login page — the app handles authentication internally via the shared password.
+
+### Subsequent Deploys
+
+```bash
+# Rebuild image
+gcloud builds submit \
+  --tag us-central1-docker.pkg.dev/$(gcloud config get-value project)/lgac-assistant/lgac-assistant:latest
+
+# Deploy new revision (zero-downtime)
+gcloud run deploy lgac-assistant \
+  --image us-central1-docker.pkg.dev/$(gcloud config get-value project)/lgac-assistant/lgac-assistant:latest \
+  --region us-central1
+```
+
+### HTTPS
+
+The app enforces HTTPS in production via middleware that checks the `X-Forwarded-Proto` header set by Cloud Run's TLS proxy. HTTP requests are redirected to HTTPS with a 301. HSTS headers are added to all production responses. Local development (`localhost` / `127.0.0.1`) continues to work over HTTP.
 
 ## Updating Documents
 
@@ -161,11 +193,13 @@ All settings are configured via environment variables or a `.env` file. See `.en
 | `RAG_TOP_K` | No | `5` | Number of document chunks retrieved per query |
 | `CHUNK_SIZE` | No | `800` | Target chunk size (approximate tokens) |
 | `CHUNK_OVERLAP` | No | `100` | Overlap between chunks (approximate tokens) |
+| `ADMIN_PASSWORD` | No | *(empty — disabled)* | Password for the admin feedback review page |
+| `FEEDBACK_FILE` | No | `./feedback.json` | Path to the feedback storage file |
 
 ## Testing
 
 ```bash
-pytest                    # Run all 29 tests
+pytest                    # Run all tests
 pytest -v                 # Verbose output
 pytest --cov              # With coverage report
 ruff check src/ tests/    # Lint
@@ -177,8 +211,12 @@ ruff check src/ tests/    # Lint
 |--------|------|-------------|
 | `POST` | `/api/auth` | Authenticate with shared password → returns `session_id` |
 | `POST` | `/api/chat` | Send a message → returns answer + source citations |
+| `POST` | `/api/feedback` | Submit feedback on the last Q&A pair |
+| `POST` | `/api/admin/auth` | Admin login → returns admin `session_id` |
+| `GET` | `/api/admin/feedback` | Retrieve all feedback records (admin auth required) |
 | `GET` | `/api/health` | Health check (returns status and indexed document count) |
 | `GET` | `/` | Chat interface (HTML page) |
+| `GET` | `/admin` | Admin feedback review page |
 
 ### Example: Authenticate
 
@@ -211,7 +249,7 @@ Member → Password Gate → Chat UI
                ┌───────────┼───────────┐
                ↓           ↓           ↓
           ChromaDB    Claude API   Session
-          (vectors)   (Sonnet 4)   Manager
+          (vectors)  (Sonnet 4.6)  Manager
 ```
 
 - **ChromaDB** stores document chunk embeddings locally (no external database)

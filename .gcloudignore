@@ -1,0 +1,14 @@
+.git
+.venv
+__pycache__
+*.pyc
+.env
+chroma_data/
+feedback.json
+.pytest_cache
+.ruff_cache
+.claude/
+.coverage
+htmlcov/
+.DS_Store
+.playwright-mcp/

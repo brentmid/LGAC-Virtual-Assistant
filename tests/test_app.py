@@ -181,3 +181,86 @@ def test_admin_page(client):
     response = client.get("/admin")
     assert response.status_code == 200
     assert "Feedback Review" in response.text
+
+
+# --- HTTPS redirect middleware tests ---
+
+
+def test_https_redirect_when_forwarded_proto_http(client):
+    """Cloud Run sends X-Forwarded-Proto: http — should 301 redirect to HTTPS."""
+    response = client.get(
+        "/api/health",
+        headers={
+            "X-Forwarded-Proto": "http",
+            "Host": "lgac-assistant-abc123-uc.a.run.app",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 301
+    assert response.headers["location"].startswith("https://")
+
+
+def test_no_redirect_for_localhost(client):
+    """Local dev should not redirect even with X-Forwarded-Proto: http."""
+    response = client.get(
+        "/api/health",
+        headers={
+            "X-Forwarded-Proto": "http",
+            "Host": "localhost:9247",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+
+
+def test_no_redirect_for_127_0_0_1(client):
+    """127.0.0.1 should not redirect."""
+    response = client.get(
+        "/api/health",
+        headers={
+            "X-Forwarded-Proto": "http",
+            "Host": "127.0.0.1:9247",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+
+
+def test_no_redirect_when_already_https(client):
+    """No redirect when X-Forwarded-Proto is already https."""
+    response = client.get(
+        "/api/health",
+        headers={
+            "X-Forwarded-Proto": "https",
+            "Host": "lgac-assistant-abc123-uc.a.run.app",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+
+
+def test_hsts_header_on_https(client):
+    """HSTS header should be present when served over HTTPS in production."""
+    response = client.get(
+        "/api/health",
+        headers={
+            "X-Forwarded-Proto": "https",
+            "Host": "lgac-assistant-abc123-uc.a.run.app",
+        },
+    )
+    assert response.status_code == 200
+    assert "strict-transport-security" in response.headers
+    assert "max-age=" in response.headers["strict-transport-security"]
+
+
+def test_no_hsts_header_on_localhost(client):
+    """HSTS header should NOT be present on localhost."""
+    response = client.get(
+        "/api/health",
+        headers={
+            "X-Forwarded-Proto": "https",
+            "Host": "localhost:9247",
+        },
+    )
+    assert response.status_code == 200
+    assert "strict-transport-security" not in response.headers

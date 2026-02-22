@@ -2,8 +2,9 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import get_settings
 from .feedback import FeedbackStore
@@ -26,6 +27,40 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 app = FastAPI(title="LGAC Virtual Assistant", version="0.1.0")
+
+
+class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
+    """Redirect HTTP to HTTPS when behind a TLS-terminating proxy (e.g. Cloud Run).
+
+    Checks the X-Forwarded-Proto header set by the proxy. Skips redirect for
+    localhost/127.0.0.1 so local dev continues to work over HTTP. Adds HSTS
+    header to all production responses.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        host = request.headers.get("host", "")
+        hostname = host.split(":")[0]
+        is_local = hostname in ("localhost", "127.0.0.1")
+
+        proto = request.headers.get("x-forwarded-proto", "")
+
+        # Redirect HTTP → HTTPS in production
+        if proto == "http" and not is_local:
+            url = request.url.replace(scheme="https")
+            return RedirectResponse(url=str(url), status_code=301)
+
+        response = await call_next(request)
+
+        # Add HSTS header in production (when behind proxy)
+        if proto == "https" and not is_local:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+
+        return response
+
+
+app.add_middleware(HTTPSRedirectMiddleware)
 
 # Initialize components
 vector_store = VectorStore(settings.chroma_persist_dir)
