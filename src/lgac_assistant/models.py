@@ -40,3 +40,20 @@ class DocumentChunk(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "ok"
     documents_indexed: int = 0
+
+
+class FeedbackRequest(BaseModel):
+    session_id: str
+    feedback: str
+
+
+class FeedbackResponse(BaseModel):
+    message: str
+
+
+class FeedbackRecord(BaseModel):
+    timestamp: str
+    question: str
+    response: str
+    feedback: str
+    session_id: str
