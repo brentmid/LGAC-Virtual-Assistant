@@ -15,6 +15,9 @@ venv/
 # Vector store
 chroma_data/
 
+# Feedback data
+feedback.json
+
 # Documents (large files)
 rag-docs/
 

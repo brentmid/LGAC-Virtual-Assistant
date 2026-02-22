@@ -46,6 +46,39 @@ chatForm.addEventListener("submit", async (e) => {
   const message = chatInput.value.trim();
   if (!message || !sessionId) return;
 
+  // Check for feedback: prefix
+  const feedbackMatch = message.match(/^feedback:\s*([\s\S]+)/i);
+  if (feedbackMatch) {
+    const feedbackText = feedbackMatch[1].trim();
+    if (!feedbackText) return;
+
+    appendMessage("user", message);
+    chatInput.value = "";
+    chatInput.style.height = "auto";
+    sendBtn.disabled = true;
+
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, feedback: feedbackText }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        appendMessage("assistant", data.message);
+      } else {
+        appendMessage("assistant", "Could not submit feedback. Please try again.");
+      }
+    } catch (err) {
+      appendMessage("assistant", "Connection error. Could not submit feedback.");
+    } finally {
+      sendBtn.disabled = false;
+      chatInput.focus();
+    }
+    return;
+  }
+
   appendMessage("user", message);
   chatInput.value = "";
   chatInput.style.height = "auto";
