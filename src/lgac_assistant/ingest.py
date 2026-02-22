@@ -7,6 +7,137 @@ from .models import DocumentChunk
 logger = logging.getLogger(__name__)
 
 
+def _reverse_cell_text(cell: str) -> str:
+    """Reverse character order within each line and reverse line order.
+
+    Fixes text from rotated PDF cells where characters are reversed
+    and lines read bottom-to-top (e.g., 'esuohkaetS\\ns\\'remlaP' → "Palmer's Steakhouse").
+    """
+    lines = cell.strip().split("\n")
+    reversed_lines = [line[::-1] for line in lines]
+    reversed_lines.reverse()
+    return " ".join(part.strip() for part in reversed_lines if part.strip())
+
+
+def _has_reversed_text(cells: list[str]) -> bool:
+    """Detect reversed text in a list of cell values.
+
+    Checks if non-empty cells contain words (3+ alphabetic chars) that
+    end with an uppercase letter and start with lowercase — the signature
+    of a reversed proper noun (e.g., 'esuohkaetS' from 'Steakhouse').
+
+    Returns True if a majority of qualifying words match the pattern.
+    """
+    if not cells:
+        return False
+
+    reversed_pattern = re.compile(r"^[a-z].*[A-Z]$")
+    qualifying = 0
+    matching = 0
+
+    for cell in cells:
+        for word in cell.replace("\n", " ").split():
+            alpha_chars = sum(1 for c in word if c.isalpha())
+            if alpha_chars >= 3:
+                qualifying += 1
+                if reversed_pattern.match(word):
+                    matching += 1
+
+    return qualifying > 0 and matching / qualifying > 0.5
+
+
+def _extract_item_names(text: str) -> list[str]:
+    """Extract item names from pdfplumber text containing Y/N grid data.
+
+    Parses lines like 'Dress Hats (Women) Y Y Y Y Y Y Y Y Y Y'
+    to extract 'Dress Hats (Women)'.
+    """
+    yn_values = {"Y", "N", "L*", "Y**", "Y***"}
+    items = []
+    for line in text.split("\n"):
+        parts = line.strip().split()
+        if len(parts) < 3:
+            continue
+        yn_count = 0
+        for p in reversed(parts):
+            if p in yn_values:
+                yn_count += 1
+            else:
+                break
+        if yn_count >= 5:
+            name = " ".join(parts[: len(parts) - yn_count])
+            if name:
+                items.append(name)
+    return items
+
+
+def _format_reversed_table(
+    table: list[list], text: str | None = None
+) -> str:
+    """Format a table with reversed headers into structured text.
+
+    Fixes reversed column headers, filters empty columns, fills in missing
+    row labels from extract_text() output, and produces structured output
+    like 'Item | Venue1: Y | Venue2: N | ...'.
+    """
+    headers_row = table[0]
+
+    # Find non-empty header columns (skip column 0 which is the row label)
+    header_map: list[tuple[int, str]] = []
+    for i in range(1, len(headers_row)):
+        cell = headers_row[i]
+        if cell and str(cell).strip():
+            header_map.append((i, _reverse_cell_text(str(cell))))
+
+    # Extract item names from text for filling missing row labels
+    item_names = _extract_item_names(text) if text else []
+
+    lines = []
+    item_idx = 0
+    for row in table[1:]:
+        # Collect values from non-empty header columns
+        vals = []
+        for col_i, _ in header_map:
+            v = str(row[col_i]).strip() if col_i < len(row) and row[col_i] else ""
+            vals.append(v)
+
+        if not any(vals):
+            continue  # Skip empty rows
+
+        # Get the label from the row or fall back to item_names
+        label = str(row[0]).strip() if row[0] and str(row[0]).strip() else None
+        if not label and item_idx < len(item_names):
+            label = item_names[item_idx]
+        if not label:
+            label = "Unknown"
+
+        item_idx += 1
+
+        parts = [label]
+        for (_, header_name), v in zip(header_map, vals):
+            if v:
+                parts.append(f"{header_name}: {v}")
+
+        lines.append(" | ".join(parts))
+
+    return "\n".join(lines)
+
+
+def _has_orphaned_grid_data(text: str) -> bool:
+    """Detect standalone Y/N lines indicating grid table data without column context.
+
+    PyMuPDF sometimes extracts grid tables as individual Y/N values on
+    separate lines, with column headers detached at the end of the text.
+    """
+    yn_values = {"Y", "N", "L*", "Y**"}
+    yn_lines = 0
+    for line in text.split("\n"):
+        stripped = line.strip().rstrip("\t").strip()
+        if stripped in yn_values:
+            yn_lines += 1
+    return yn_lines >= 20
+
+
 def extract_text_pymupdf(path: Path) -> str:
     """Extract text from PDF using PyMuPDF."""
     import fitz
@@ -29,11 +160,20 @@ def extract_text_pdfplumber(path: Path) -> str:
             text = page.extract_text()
             if text:
                 pages.append(text)
+
             tables = page.extract_tables()
             for table in tables:
-                for row in table:
-                    cells = [str(c) if c else "" for c in row]
-                    pages.append(" | ".join(cells))
+                if not table or len(table) < 2:
+                    continue
+
+                # Check first row for reversed text (rotated column headers)
+                header_cells = [str(c) for c in table[0] if c and str(c).strip()]
+                if header_cells and _has_reversed_text(header_cells):
+                    pages.append(_format_reversed_table(table, text))
+                else:
+                    for row in table:
+                        cells = [str(c) if c else "" for c in row]
+                        pages.append(" | ".join(cells))
     return "\n".join(pages)
 
 
@@ -43,6 +183,15 @@ def extract_pdf(path: Path) -> str:
     if len(text.strip()) < 100:
         logger.info(f"PyMuPDF yielded little text for {path.name}, trying pdfplumber")
         text = extract_text_pdfplumber(path)
+    else:
+        # Quality checks: detect garbled text that PyMuPDF can't handle well
+        text_lines = [line.strip() for line in text.split("\n") if line.strip()]
+        if _has_reversed_text(text_lines) or _has_orphaned_grid_data(text):
+            logger.info(
+                f"PyMuPDF output has quality issues for {path.name}, "
+                "trying pdfplumber"
+            )
+            text = extract_text_pdfplumber(path)
     return text
 
 
