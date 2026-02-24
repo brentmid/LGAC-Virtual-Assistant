@@ -1,7 +1,7 @@
 # Deployment Plan: Cloud Run + HTTPS (Issues #19 & #24)
 
 **Created**: 2026-02-22
-**Status**: Not started
+**Status**: Complete — deployed 2026-02-24
 **Issues**: [#19](https://github.com/brentmid/LGAC-Virtual-Assistant/issues/19) (Cloud Run deployment), [#24](https://github.com/brentmid/LGAC-Virtual-Assistant/issues/24) (HTTPS)
 
 ## Overview
@@ -19,80 +19,102 @@ Deploy the LGAC Virtual Assistant to Google Cloud Run. Cloud Run provides automa
 | `podman` | 5.8.0 | Installed, VM running |
 | `brew` | 5.0.14 | Available for any additional installs |
 
-### gcloud Authentication
+### gcloud Authentication — Dual Configuration
 
-The CLI is currently authenticated as `work-account-redacted`. You'll need to re-auth with your personal/Workspace Google account that owns the new GCP project:
-
-```bash
-gcloud auth login
-```
+Brent's `gcloud` must stay authenticated to `work-account-redacted` / project `work-project-redacted` for Claude Code (Vertex billing). A separate named configuration is used for this project so both can coexist. All deployment commands use `--configuration=home` to target the home account without switching the default.
 
 ## Phase 1: GCP Project Setup (Manual — Brent)
 
-### 1.1 Create the project
+Run each command below one at a time. Check off each step as it completes.
 
-Option A — via Cloud Console:
-- Go to https://console.cloud.google.com
-- Create a new project (e.g., `lgac-virtual-assistant`)
-- Enable billing
+### 1.1 Create the `work` gcloud configuration (preserves current auth)
 
-Option B — via CLI:
+- [x] **Step 1**: Rename the current default config to `work`:
 ```bash
-gcloud projects create lgac-virtual-assistant --name="LGAC Virtual Assistant"
-# Then enable billing in the Cloud Console (can't be done via CLI for new billing accounts)
+gcloud config configurations create work
 ```
 
-### 1.2 Configure gcloud
-
+- [x] **Step 2**: Set the work project:
 ```bash
-gcloud auth login                              # Auth with your Workspace account
-gcloud config set project lgac-virtual-assistant  # Use your actual project ID
+gcloud config set project work-project-redacted --configuration=work
 ```
 
-### 1.3 Enable required APIs
-
+- [x] **Step 3**: Copy existing auth to work config (set account):
 ```bash
-gcloud services enable \
-  run.googleapis.com \
-  artifactregistry.googleapis.com \
-  cloudbuild.googleapis.com \
-  secretmanager.googleapis.com
+gcloud config set account work-account-redacted --configuration=work
 ```
 
-### 1.4 Create Artifact Registry repository
+### 1.2 Create the `home` gcloud configuration
 
+- [x] **Step 4**: Create the home configuration:
 ```bash
-gcloud artifacts repositories create lgac-assistant \
-  --repository-format=docker \
-  --location=us-central1 \
-  --description="LGAC Virtual Assistant Docker images"
+gcloud config configurations create home
 ```
 
-### 1.5 Store secrets in Secret Manager
-
+- [x] **Step 5**: Log in with your personal/home Google account (`207076843+brentmid@users.noreply.github.com`):
 ```bash
-# Anthropic API key
-echo -n "sk-ant-YOUR-KEY-HERE" | \
-  gcloud secrets create anthropic-api-key --data-file=-
-
-# App password (shared tester password)
-echo -n "lgac2026" | \
-  gcloud secrets create app-password --data-file=-
-
-# Admin password (for feedback review page)
-echo -n "YOUR-ADMIN-PASSWORD" | \
-  gcloud secrets create admin-password --data-file=-
+gcloud auth login --configuration=home
 ```
 
-Grant Cloud Run access to the secrets:
-```bash
-PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')
+### 1.3 Create the GCP project
 
-for SECRET in anthropic-api-key app-password admin-password; do
-  gcloud secrets add-iam-policy-binding $SECRET \
-    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor"
-done
+- [x] **Step 6**: Create the project (project number: 477512975027):
+```bash
+gcloud projects create lgac-virtual-assistant --name="LGAC Virtual Assistant" --configuration=home
+```
+
+- [x] **Step 7**: Set the home configuration's default project:
+```bash
+gcloud config set project lgac-virtual-assistant --configuration=home
+```
+
+- [x] **Step 8**: Enable billing — **must be done in the browser**:
+  - Go to https://console.cloud.google.com/billing
+  - Make sure you're signed in with your home Google account (top-right avatar)
+  - Link a billing account to the `lgac-virtual-assistant` project
+  - (New Google Cloud accounts get $300 free credits)
+
+### 1.4 Enable required APIs
+
+- [x] **Step 9**: Enable APIs:
+```bash
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com --configuration=home
+```
+
+### 1.5 Create Artifact Registry repository
+
+- [x] **Step 10**: Create the Docker repo:
+```bash
+gcloud artifacts repositories create lgac-assistant --repository-format=docker --location=us-central1 --description="LGAC Virtual Assistant Docker images" --configuration=home
+```
+
+### 1.6 Store secrets in Secret Manager
+
+- [x] **Step 11**: Store the Anthropic API key (replace with your actual key):
+```bash
+echo -n "sk-ant-YOUR-KEY-HERE" | gcloud secrets create anthropic-api-key --data-file=- --configuration=home
+```
+
+- [x] **Step 12**: Store the app password:
+```bash
+echo -n "lgac2026" | gcloud secrets create app-password --data-file=- --configuration=home
+```
+
+- [x] **Step 13**: Store the admin password (replace with your chosen password):
+```bash
+echo -n "YOUR-ADMIN-PASSWORD" | gcloud secrets create admin-password --data-file=- --configuration=home
+```
+
+- [x] **Step 14**: Grant Cloud Run access to all secrets:
+```bash
+PROJECT_NUMBER=$(gcloud projects describe lgac-virtual-assistant --format='value(projectNumber)' --configuration=home) && for SECRET in anthropic-api-key app-password admin-password; do gcloud secrets add-iam-policy-binding $SECRET --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" --role="roles/secretmanager.secretAccessor" --configuration=home; done
+```
+
+### 1.7 Re-activate the work configuration
+
+- [x] **Step 15**: Switch back to work as the default (so Claude Code keeps working):
+```bash
+gcloud config configurations activate work
 ```
 
 ## Phase 2: HTTPS Middleware (Code Change — Claude)
@@ -107,11 +129,11 @@ Add FastAPI middleware to `src/lgac_assistant/app.py` that:
 This is ~20 lines of code. No additional dependencies needed.
 
 ### Acceptance criteria for #24
-- [ ] HTTPS enforced in production (Cloud Run handles TLS termination)
-- [ ] HTTP → HTTPS redirect when `X-Forwarded-Proto: http` is detected
-- [ ] HSTS header added to responses in production
-- [ ] Local dev (`localhost`) continues to work over HTTP
-- [ ] Documented in README
+- [x] HTTPS enforced in production (Cloud Run handles TLS termination)
+- [x] HTTP → HTTPS redirect when `X-Forwarded-Proto: http` is detected
+- [x] HSTS header added to responses in production
+- [x] Local dev (`localhost`) continues to work over HTTP
+- [x] Documented in README
 
 ## Phase 3: Build & Push Container Image
 
@@ -142,30 +164,18 @@ Note: do NOT add `rag-docs/` to `.gcloudignore` — it must be uploaded for the 
 
 ### Build command
 
+- [x] **Step 16**: Build and push the image via Cloud Build:
 ```bash
-cd ~/bin/LGAC-Virtual-Assistant
-
-gcloud builds submit \
-  --tag us-central1-docker.pkg.dev/$(gcloud config get-value project)/lgac-assistant/lgac-assistant:latest \
-  --timeout=1200
+gcloud builds submit --tag us-central1-docker.pkg.dev/lgac-virtual-assistant/lgac-assistant/lgac-assistant:latest --timeout=1200 --configuration=home
 ```
 
 This uploads the source, builds the Docker image on Google's servers (linux/amd64), and pushes it to Artifact Registry. The 1200s timeout allows for the pip install + index build steps.
 
 ## Phase 4: Deploy to Cloud Run
 
+- [x] **Step 17**: Deploy to Cloud Run:
 ```bash
-gcloud run deploy lgac-assistant \
-  --image us-central1-docker.pkg.dev/$(gcloud config get-value project)/lgac-assistant/lgac-assistant:latest \
-  --region us-central1 \
-  --platform managed \
-  --allow-unauthenticated \
-  --cpu 1 \
-  --memory 1Gi \
-  --min-instances 0 \
-  --max-instances 2 \
-  --port 9247 \
-  --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,APP_PASSWORD=app-password:latest,ADMIN_PASSWORD=admin-password:latest"
+gcloud run deploy lgac-assistant --image us-central1-docker.pkg.dev/lgac-virtual-assistant/lgac-assistant/lgac-assistant:latest --region us-central1 --platform managed --allow-unauthenticated --cpu 1 --memory 1Gi --min-instances 0 --max-instances 2 --port 9247 --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,APP_PASSWORD=app-password:latest,ADMIN_PASSWORD=admin-password:latest" --configuration=home
 ```
 
 ### What `--allow-unauthenticated` means
@@ -178,25 +188,25 @@ This allows anyone on the internet to hit the URL. The app handles its own auth 
 Service [lgac-assistant] revision [lgac-assistant-00001-xxx] has been deployed
 and is serving 100 percent of traffic.
 
-Service URL: https://lgac-assistant-XXXXXXXXXX-uc.a.run.app
+Service URL: https://lgac-assistant-477512975027.us-central1.run.app
 ```
 
 ## Phase 5: Verify
 
 ### 5.1 Health check
 ```bash
-curl https://lgac-assistant-XXXXXXXXXX-uc.a.run.app/api/health
+curl https://lgac-assistant-477512975027.us-central1.run.app/api/health
 # Expected: {"status":"ok","documents_indexed":205}
 ```
 
 ### 5.2 HTTPS verification
 ```bash
 # Should get 301 redirect
-curl -I http://lgac-assistant-XXXXXXXXXX-uc.a.run.app/
+curl -I http://lgac-assistant-477512975027.us-central1.run.app/
 # (Cloud Run itself handles this — HTTP is not exposed on *.run.app domains)
 
 # Should work
-curl -I https://lgac-assistant-XXXXXXXXXX-uc.a.run.app/
+curl -I https://lgac-assistant-477512975027.us-central1.run.app/
 ```
 
 ### 5.3 Full QA
@@ -213,7 +223,7 @@ Open the HTTPS URL in a browser and run through the QA checklist in CLAUDE.md:
 9. Markdown rendering in responses
 
 ### 5.4 Admin page
-- Navigate to `https://lgac-assistant-XXXXXXXXXX-uc.a.run.app/admin`
+- Navigate to `https://lgac-assistant-477512975027.us-central1.run.app/admin`
 - Log in with the admin password
 - Verify feedback records appear
 
@@ -232,12 +242,14 @@ cd ~/bin/LGAC-Virtual-Assistant
 
 # Rebuild image (if docs changed, rag-docs/ must be present locally)
 gcloud builds submit \
-  --tag us-central1-docker.pkg.dev/$(gcloud config get-value project)/lgac-assistant/lgac-assistant:latest
+  --tag us-central1-docker.pkg.dev/lgac-virtual-assistant/lgac-assistant/lgac-assistant:latest \
+  --configuration=home
 
 # Deploy new revision
 gcloud run deploy lgac-assistant \
-  --image us-central1-docker.pkg.dev/$(gcloud config get-value project)/lgac-assistant/lgac-assistant:latest \
-  --region us-central1
+  --image us-central1-docker.pkg.dev/lgac-virtual-assistant/lgac-assistant/lgac-assistant:latest \
+  --region us-central1 \
+  --configuration=home
 ```
 
 Cloud Run deploys new revisions with zero downtime (traffic shifts after the new revision passes health checks).

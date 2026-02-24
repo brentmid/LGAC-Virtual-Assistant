@@ -221,7 +221,7 @@ For club IT staff planning a production deployment:
 
 ## Current Status & Next Steps
 
-**Status as of 2026-02-22**: MVP code is complete with feedback collection and improved document parsing pipeline. All 66 tests pass. 205 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Testers can submit feedback on answers by typing `feedback:` followed by comments. Admin review page at `/admin` (requires `ADMIN_PASSWORD` env var). Ready for Cloud Run deployment.
+**Status as of 2026-02-24**: MVP is deployed to Google Cloud Run at https://lgac-assistant-477512975027.us-central1.run.app. HTTPS is enforced automatically by Cloud Run with HSTS headers. Health check confirmed: 205 documents indexed. All 66 tests pass. 205 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Testers can submit feedback on answers by typing `feedback:` followed by comments. Admin review page at `/admin` (requires `ADMIN_PASSWORD` env var). Secrets stored in Google Secret Manager.
 
 ### Resume Development
 
@@ -291,15 +291,7 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 
 ### After QA Passes
 
-1. **Deploy to Cloud Run (#19 + #24)** — full plan documented in `DEPLOYMENT_PLAN.md`. Summary:
-   - Brent creates a GCP project, enables billing, authenticates `gcloud` with Workspace account
-   - Claude adds HTTPS redirect middleware (~20 lines in `app.py`) + HSTS header
-   - Build image via Cloud Build (remote, avoids ARM64→amd64 cross-compile)
-   - Secrets (API key, passwords) go in Google Secret Manager
-   - Deploy to Cloud Run: 1 CPU, 1GB RAM, 0-2 instances, `--allow-unauthenticated`
-   - Cloud Run provides automatic HTTPS on `*.run.app` domain (solves #24)
-   - Estimated GCP cost: < $5/month for MVP tester traffic
-   - Tools ready: `gcloud` v533.0.0 installed, `brew` available for anything else
+1. ~~**Deploy to Cloud Run (#19 + #24)**~~ — **Done 2026-02-24**. Deployed at https://lgac-assistant-477512975027.us-central1.run.app. Full plan in `DEPLOYMENT_PLAN.md`.
 2. **Tune prompt** — adjust `src/lgac_assistant/prompts.py` based on answer quality observations
 
 ### Open GitHub Issues
@@ -309,14 +301,18 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 | ~~29~~ | ~~Improve document parsing pipeline for complex layouts~~ | ~~High~~ | ~~Done~~ |
 | 30 | Add OCR support for image-based documents | Medium | Enhancement |
 | 27 | Add Playwright browser tests for auth flow and chat UI | Medium | Testing |
-| 24 | Require HTTPS before cloud deployment | Medium | Infrastructure |
-| 19 | Google Cloud Run deployment | Medium | Infrastructure |
+| ~~24~~ | ~~Require HTTPS before cloud deployment~~ | ~~Medium~~ | ~~Done~~ |
+| ~~19~~ | ~~Google Cloud Run deployment~~ | ~~Medium~~ | ~~Done~~ |
 | 21 | Monitoring and logging | Low | Feature |
 | 20 | Admin document upload and re-indexing | Low | Feature |
 | 18 | Rate limiting | Low | Security |
 | 17 | Persistent session storage | Low | Feature |
 | 16 | Production authentication (OAuth/SSO) | Low | Feature |
 | 15 | Streaming responses | Low | Enhancement |
+
+### Completed (2026-02-24)
+
+- Deployed to Google Cloud Run (#19, #24) — HTTPS enforced automatically by Cloud Run with HSTS headers and HTTP-to-HTTPS redirect middleware; secrets (API key, passwords) stored in Google Secret Manager; image built via Cloud Build (remote, linux/amd64); service URL: https://lgac-assistant-477512975027.us-central1.run.app; health check confirmed 205 documents indexed
 
 ### Completed (2026-02-22)
 
