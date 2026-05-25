@@ -5,7 +5,7 @@
 **Closes**: [#44](https://github.com/brentmid/LGAC-Virtual-Assistant/issues/44)
 **Current state**: MVP, deployed to Google Cloud Run, single shared password, in-memory sessions
 
-This document is the handoff guide for taking the LGAC Virtual Assistant from a developer-run MVP to a club-owned, production-grade service. It is written for a technical reader. It covers what exists today, the decisions the club must make (ownership, accounts, billing), and a phased path to production with effort and cost estimates.
+This document is the handoff guide for taking the LGAC Virtual Assistant from a brentmid-run MVP to a club-owned, production-grade service. It is written for a technical reader. It covers what exists today, the decisions the club must make (ownership, accounts, billing), and a phased path to production with effort and cost estimates.
 
 ---
 
@@ -41,7 +41,7 @@ A Retrieval-Augmented Generation (RAG) Q&A chatbot. Club members ask questions i
 
 ## 2. Current deployment (as handed off)
 
-- **Platform**: Google Cloud Run, region `us-central1`, project `lgac-virtual-assistant` (now deleted), owned by the original developer's personal Google account.
+- **Platform**: Google Cloud Run, region `us-central1`, project `lgac-virtual-assistant` (now deleted), owned by brentmid's personal Google account.
 - **URL**: https://lgac-assistant-477512975027.us-central1.run.app
 - **Sizing**: 1 CPU, 1 GB RAM, scale 0–2 instances, port 9247, `--allow-unauthenticated` (Cloud Run IAM is open; the **app** enforces its own password).
 - **HTTPS**: automatic via Cloud Run managed TLS, plus app-side HTTP→HTTPS redirect and HSTS middleware.
@@ -77,16 +77,16 @@ The single most important transition decision is **who owns the accounts and the
 
 ### Option A — Club takes over everything
 
-The club creates its own Google Cloud project and Anthropic account, the code is redeployed there, and the developer steps away. Cleanest long-term; highest up-front lift for club IT.
+The club creates its own Google Cloud project and Anthropic account, the code is redeployed there, and brentmid steps away. Cleanest long-term; highest up-front lift for club IT.
 
 - **Club provides:** a Google Cloud account with billing, an Anthropic API account with billing, a person who can run `gcloud` deploys.
-- **Pros:** full control, no dependency on the original developer, billing is transparent and in the club's name.
+- **Pros:** full control, no dependency on brentmid, billing is transparent and in the club's name.
 - **Cons:** requires technical staff/vendor capable of operating Cloud Run; club owns all maintenance.
 - **Best when:** the club has IT staff or a standing vendor relationship.
 
-### Option B — Developer operates, club funds
+### Option B — brentmid operates, club funds
 
-The developer keeps running the system; the club supplies (or reimburses) the Anthropic API key and GCP costs. Transition is mostly billing + a support agreement, not a technical migration.
+brentmid keeps running the system; the club supplies (or reimburses) the Anthropic API key and GCP costs. Transition is mostly billing + a support agreement, not a technical migration.
 
 - **Club provides:** an Anthropic API key billed to the club, agreement on a monthly GCP reimbursement or a club-owned billing account linked to the existing project.
 - **Pros:** minimal technical lift; fastest to "live for members."
@@ -95,7 +95,7 @@ The developer keeps running the system; the club supplies (or reimburses) the An
 
 ### Option C — Managed vendor / hosting partner
 
-A third party (the original developer as a paid vendor, or an MSP) owns operations under a support contract.
+A third party (brentmid as a paid vendor, or an MSP) owns operations under a support contract.
 
 - **Club provides:** a contract defining SLA, cost, and an exit/data-return clause.
 - **Pros:** professional operations, defined accountability.
@@ -108,7 +108,7 @@ A third party (the original developer as a paid vendor, or an MSP) owns operatio
 
 - [ ] Club creates a Google Cloud organization/project under a club-owned Google account (Workspace recommended).
 - [ ] Club creates an Anthropic account at console.anthropic.com and generates its own API key with a spend limit.
-- [ ] Rotate **all three** secrets into the new project's Secret Manager (`anthropic-api-key`, `app-password`, `admin-password`) — do not reuse the developer's key.
+- [ ] Rotate **all three** secrets into the new project's Secret Manager (`anthropic-api-key`, `app-password`, `admin-password`) — do not reuse brentmid's key.
 - [ ] Redeploy per `DEPLOYMENT_PLAN.md` against the club's project (the runbook is project-portable; only the project ID and account change).
 - [ ] Re-point any custom domain / DNS (Section 6) at the new service.
 - [ ] Set an Anthropic monthly spend cap and a GCP budget alert.
@@ -118,7 +118,7 @@ A third party (the original developer as a paid vendor, or an MSP) owns operatio
 
 ## 5. Path to production — phased roadmap
 
-Each phase is independently shippable. Effort estimates are rough developer-days for someone familiar with the stack. Tackle in order; phases 1–3 are the genuine blockers for opening to the full membership.
+Each phase is independently shippable. Effort estimates are rough person-days for someone familiar with the stack. Tackle in order; phases 1–3 are the genuine blockers for opening to the full membership.
 
 ### Phase 0 — Account transfer & baseline ops *(prerequisite)*
 Complete Section 4's transfer checklist. Add a GCP budget alert and an Anthropic spend cap. **~1–2 days.**
@@ -149,7 +149,7 @@ Today, updating a club document means rebuilding the Docker image. Add an authen
 ### Phase 6 — Quality & UX polish *(issues #15, #27, #30)*
 Streaming responses (#15), broader automated browser tests (#27), and OCR for any future scanned/image documents (#30). Prompt tuning in `prompts.py` based on real feedback. **~3–6 days, ongoing.**
 
-**Rough total to a defensible production system (Phases 0–4):** ~9–21 developer-days. Phases 5–6 are quality-of-life and can follow launch.
+**Rough total to a defensible production system (Phases 0–4):** ~9–21 person-days. Phases 5–6 are quality-of-life and can follow launch.
 
 ---
 
@@ -194,7 +194,7 @@ The Claude model is set via the `CLAUDE_MODEL` env var (currently `claude-sonnet
 ## 8. Open questions for the club
 
 - Can Northstar (the club's system of record) provide an authentication API? If not, which approach do we pursue — passcodes, OAuth, or site-to-site via thelandings.com? (Drives Phase 1 — see above.)
-- Who will own day-to-day operations — internal IT, the original developer, or a vendor? (Section 4.)
+- Who will own day-to-day operations — internal IT, brentmid, or a vendor? (Section 4.)
 - What is the acceptable monthly budget ceiling for API + hosting? (Sets the rate-limit and spend-cap configuration.)
 - Is logging member queries for quality review acceptable under the club's privacy expectations? (Affects Phase 4.)
 - What subdomain should the service live at? (Section 6.)
