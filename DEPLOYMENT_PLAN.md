@@ -1,8 +1,20 @@
 # Deployment Plan: Cloud Run + HTTPS (Issues #19 & #24)
 
 **Created**: 2026-02-22
-**Status**: Complete — deployed 2026-02-24
+**Status**: Complete — deployed 2026-02-24; **test deployment decommissioned 2026-05-25**
 **Issues**: [#19](https://github.com/brentmid/LGAC-Virtual-Assistant/issues/19) (Cloud Run deployment), [#24](https://github.com/brentmid/LGAC-Virtual-Assistant/issues/24) (HTTPS)
+
+> ⚠️ **These were test credentials on a personal account, and the deployment has been shut down.**
+> The Cloud Run service, the personal GCP project (`lgac-virtual-assistant`), and the Anthropic API key
+> described below were a **temporary MVP test deployment**. They were **decommissioned on 2026-05-25** to
+> stop billing before this repository was made public. **All credentials and resources referenced in this
+> document are dead and must not be reused** — including the `lgac2026` shared password, the Anthropic API
+> key, the GCP project, and the `*.run.app` service URL.
+>
+> This document is retained as a **reference runbook** for whoever stands the service back up. As part of the
+> transition to Club IT (see `TRANSITION_PLAN.md`), Club IT must provision a **fresh GCP project, a new
+> Anthropic API key, and new passwords** in their own accounts. The steps below are project-portable — only
+> the project ID, account, and secret values change.
 
 ## Overview
 
@@ -21,7 +33,7 @@ Deploy the LGAC Virtual Assistant to Google Cloud Run. Cloud Run provides automa
 
 ### gcloud Authentication — Dual Configuration
 
-Brent's `gcloud` must stay authenticated to `work-account-redacted` / project `work-project-redacted` for Claude Code (Vertex billing). A separate named configuration is used for this project so both can coexist. All deployment commands use `--configuration=home` to target the home account without switching the default.
+The original developer's `gcloud` had to stay authenticated to a separate **work account / work GCP project** (used by Claude Code for Vertex billing). A separate named `home` configuration was used for this project so both could coexist, and all deployment commands use `--configuration=home` to target the home account without switching the default. *(Club IT will use a single account and project of their own and can ignore this dual-configuration setup.)*
 
 ## Phase 1: GCP Project Setup (Manual — Brent)
 
@@ -36,12 +48,12 @@ gcloud config configurations create work
 
 - [x] **Step 2**: Set the work project:
 ```bash
-gcloud config set project work-project-redacted --configuration=work
+gcloud config set project YOUR-WORK-PROJECT --configuration=work
 ```
 
 - [x] **Step 3**: Copy existing auth to work config (set account):
 ```bash
-gcloud config set account work-account-redacted --configuration=work
+gcloud config set account your-work-account@example.com --configuration=work
 ```
 
 ### 1.2 Create the `home` gcloud configuration
@@ -51,7 +63,7 @@ gcloud config set account work-account-redacted --configuration=work
 gcloud config configurations create home
 ```
 
-- [x] **Step 5**: Log in with your personal/home Google account (`207076843+brentmid@users.noreply.github.com`):
+- [x] **Step 5**: Log in with your home/club Google account:
 ```bash
 gcloud auth login --configuration=home
 ```
@@ -97,7 +109,7 @@ echo -n "sk-ant-YOUR-KEY-HERE" | gcloud secrets create anthropic-api-key --data-
 
 - [x] **Step 12**: Store the app password:
 ```bash
-echo -n "lgac2026" | gcloud secrets create app-password --data-file=- --configuration=home
+echo -n "CHOOSE-A-NEW-APP-PASSWORD" | gcloud secrets create app-password --data-file=- --configuration=home
 ```
 
 - [x] **Step 13**: Store the admin password (replace with your chosen password):

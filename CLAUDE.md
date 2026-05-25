@@ -221,7 +221,9 @@ For club IT staff planning a production deployment:
 
 ## Current Status & Next Steps
 
-**Status as of 2026-02-24**: MVP is deployed to Google Cloud Run at https://lgac-assistant-477512975027.us-central1.run.app. HTTPS is enforced automatically by Cloud Run with HSTS headers. Health check confirmed: 205 documents indexed. All 66 tests pass. 205 chunks indexed from 13 documents. `.env` is configured with a live Anthropic API key using Claude Sonnet 4.6. Server port changed to 9247 to avoid conflicts. Testers can submit feedback on answers by typing `feedback:` followed by comments. Admin review page at `/admin` (requires `ADMIN_PASSWORD` env var). Secrets stored in Google Secret Manager.
+> ⚠️ **Test deployment decommissioned (2026-05-25).** The Cloud Run service, the personal GCP project (`lgac-virtual-assistant`), and the Anthropic API key used during the MVP were a **temporary test deployment on personal accounts**. They were **shut down on 2026-05-25** to stop billing ahead of making this repository public. **Every credential and resource referenced below is dead** — the shared password (`lgac2026`), the Anthropic API key, the GCP project, and the `*.run.app` service URL must not be reused. As part of the transition to Club IT (see `TRANSITION_PLAN.md`), Club IT must provision a **fresh GCP project, a new Anthropic API key, and new passwords** in their own accounts.
+
+**Status as of 2026-02-24 (test deployment — now decommissioned)**: MVP was deployed to Google Cloud Run. HTTPS was enforced automatically by Cloud Run with HSTS headers. Health check confirmed: 205 documents indexed. All 66 tests pass. 205 chunks indexed from 13 documents. Server port changed to 9247 to avoid conflicts. Testers can submit feedback on answers by typing `feedback:` followed by comments. Admin review page at `/admin` (requires `ADMIN_PASSWORD` env var). Secrets stored in Google Secret Manager.
 
 ### Resume Development
 
@@ -230,7 +232,7 @@ cd ~/bin/LGAC-Virtual-Assistant
 source .venv/bin/activate
 python -m lgac_assistant
 # Server runs at http://localhost:9247
-# Password: lgac2026
+# Password: whatever you set as APP_PASSWORD in your local .env
 ```
 
 If port 9247 is already in use: `lsof -ti:9247 | xargs kill`
@@ -244,7 +246,7 @@ Run through these tests with the server running at http://localhost:9247. Use a 
 #### Test 1: Password Gate
 1. Open http://localhost:9247
 2. Enter wrong password → should show "Invalid password"
-3. Enter correct password (`lgac2026`) → should enter chat interface
+3. Enter correct password (your local `APP_PASSWORD`) → should enter chat interface
 4. Verify: auth screen disappears completely, chat input spans full browser width
 
 **Status**: Auth screen fix verified via Playwright. Needs manual confirmation.
