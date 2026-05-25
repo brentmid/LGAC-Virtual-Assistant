@@ -102,7 +102,7 @@ A third party (the original developer as a paid vendor, or an MSP) owns operatio
 - **Cons:** recurring contract cost; still need a documented exit path so the club isn't locked in.
 - **Best when:** the club wants reliability without building internal capability.
 
-> **Recommendation to surface, not decide:** if a member-facing launch is near, start with **B** (fast, low-risk, proves value), with a written commitment to migrate to **A** or **C** once usage and cost are understood. Whatever the choice, the account-transfer mechanics below must be completed.
+> Whatever the choice, the account-transfer mechanics below must be completed.
 
 ### Account-transfer checklist (applies to A and C)
 
@@ -112,8 +112,7 @@ A third party (the original developer as a paid vendor, or an MSP) owns operatio
 - [ ] Redeploy per `DEPLOYMENT_PLAN.md` against the club's project (the runbook is project-portable; only the project ID and account change).
 - [ ] Re-point any custom domain / DNS (Section 6) at the new service.
 - [ ] Set an Anthropic monthly spend cap and a GCP budget alert.
-- [ ] Transfer the GitHub repository (or fork it) to a club-owned org; remove the original developer's access if a clean break is intended.
-- [ ] Confirm the developer's personal project can be safely deleted (no shared resources) and decommission it.
+- [ ] Transfer the GitHub repository to a club-owned org *(if desired)*.
 
 ---
 
@@ -125,11 +124,15 @@ Each phase is independently shippable. Effort estimates are rough developer-days
 Complete Section 4's transfer checklist. Add a GCP budget alert and an Anthropic spend cap. **~1–2 days.**
 
 ### Phase 1 — Real authentication *(issue #16)*
-Replace the shared password with per-member identity. Options, cheapest to richest:
-- **Magic-link / email OTP** against a member email list — light, no password management.
-- **OAuth / SSO** if the club has Google Workspace or a member portal that can act as an identity provider.
-- **Integration with the club's existing member-management system** (e.g., Jonas, ClubEssential, MembersFirst) if one exists — ideal, since it reuses the real member roster.
-`sessions.py` and the `/api/auth` flow are the integration points. **~3–8 days** depending on the chosen IdP.
+Replace the shared password with per-member identity. The club's system of record is **Northstar** (globalnorthstar.com), so the investigation starts there:
+
+- **First, determine whether Northstar exposes an authentication API** (likely not). If it does, integrate directly against it — that reuses the real member roster and is the ideal outcome.
+- **If Northstar has no usable auth API**, choose an approach to investigate:
+  - **Passcode system** — issue and manage member access codes for the assistant.
+  - **OAuth login** — create and distribute an OAuth-based member sign-in.
+  - **Site-to-site / federated** — require members to authenticate to Northstar (at thelandings.com) first, then grant access to the assistant on a short-lived token.
+
+`sessions.py` and the `/api/auth` flow are the integration points. These options still need investigation; **~3–8 days** depending on the chosen approach.
 
 ### Phase 2 — Persistent sessions & feedback *(issue #17)*
 Move sessions (and the feedback store) out of process memory into **Redis** (e.g., Memorystore) or a managed database (Cloud SQL / Firestore). This is what makes >1 instance and zero-downtime redeploys safe. Swap the in-memory dict in `sessions.py` and the JSON writes in `feedback.py` for the chosen backend. **~2–4 days.**
@@ -190,7 +193,7 @@ The Claude model is set via the `CLAUDE_MODEL` env var (currently `claude-sonnet
 
 ## 8. Open questions for the club
 
-- Does the club have an existing member-management / identity system the assistant should authenticate against? (Drives Phase 1.)
+- Can Northstar (the club's system of record) provide an authentication API? If not, which approach do we pursue — passcodes, OAuth, or site-to-site via thelandings.com? (Drives Phase 1 — see above.)
 - Who will own day-to-day operations — internal IT, the original developer, or a vendor? (Section 4.)
 - What is the acceptable monthly budget ceiling for API + hosting? (Sets the rate-limit and spend-cap configuration.)
 - Is logging member queries for quality review acceptable under the club's privacy expectations? (Affects Phase 4.)
