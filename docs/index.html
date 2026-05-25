@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LGAC Virtual Assistant — Transition Brief</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css" id="theme">
+
+  <style>
+    :root { --accent: #1f6f43; --accent-soft: #e7f1ec; --ink: #1a2b22; }
+    .reveal { font-size: 30px; color: var(--ink); }
+    .reveal h1, .reveal h2, .reveal h3 { color: var(--accent); text-transform: none; letter-spacing: normal; font-weight: 700; }
+    .reveal h1 { font-size: 1.9em; }
+    .reveal h2 { font-size: 1.35em; margin-bottom: 0.5em; }
+    .reveal section { text-align: left; }
+    .reveal section.center { text-align: center; }
+    .reveal ul { display: block; margin-left: 1em; }
+    .reveal li { margin: 0.28em 0; }
+    .reveal .muted { color: #5c6f66; font-size: 0.8em; }
+    .reveal .tag { display: inline-block; background: var(--accent); color: #fff; padding: 0.08em 0.6em; border-radius: 999px; font-size: 0.55em; vertical-align: middle; }
+    .reveal .warn { background: #fff4e5; border-left: 6px solid #e08a00; padding: 0.6em 0.9em; border-radius: 6px; font-size: 0.82em; }
+    .reveal .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.7em; margin-top: 0.5em; }
+    .reveal .card { background: var(--accent-soft); border: 1px solid #cfe1d8; border-radius: 10px; padding: 0.6em 0.7em; font-size: 0.62em; }
+    .reveal .card h3 { font-size: 1.15em; margin: 0 0 0.3em; }
+    .reveal table { font-size: 0.62em; }
+    .reveal table th { color: var(--accent); }
+    .reveal .phase { font-size: 0.66em; }
+    .reveal .phase b { color: var(--accent); }
+    .reveal .eff { color: #8a5a00; font-weight: 600; }
+    .reveal .footer { position: fixed; bottom: 8px; left: 16px; font-size: 13px; color: #9fb0a8; z-index: 30; }
+    .reveal code { color: #b1361e; background: #f6efe9; padding: 0 0.25em; border-radius: 4px; }
+    .reveal .lead { font-size: 1.05em; }
+    .reveal .pill-row { margin-top: 0.4em; }
+    .reveal .pill { display:inline-block; background:#eef3f0; border:1px solid #cfe1d8; border-radius:999px; padding:0.12em 0.6em; font-size:0.6em; margin:0.15em; }
+  </style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <!-- 1. Title -->
+    <section class="center" data-background-color="#0f3d27">
+      <h1 style="color:#ffffff;">LGAC Virtual Assistant</h1>
+      <p style="color:#cfe3d8; font-size:1.2em; margin-top:0;">Transition Brief for Club IT</p>
+      <p class="muted" style="color:#8fb6a1;">A RAG-powered Q&amp;A assistant for club members — what it is, what it costs, and how to own it.</p>
+      <p class="muted" style="color:#6f9a84; margin-top:1.5em;">Use the arrow keys → or click to advance · press <code style="color:#fff;background:#155233;">Esc</code> for an overview</p>
+    </section>
+
+    <!-- 2. What it is -->
+    <section>
+      <h2>What it is</h2>
+      <p class="lead">A question-and-answer chatbot for club members.</p>
+      <ul>
+        <li>Members ask in plain language; it answers <b>only from official club documents</b> (13 PDFs/DOCX: dress code, dues, rules, hours, membership&hellip;).</li>
+        <li>It does <b>not</b> browse the web and is instructed to <b>decline off-topic questions</b> and <b>never fabricate</b> answers.</li>
+        <li>Every answer cites the source document it came from.</li>
+      </ul>
+      <p class="muted">Built as an MVP proof-of-concept to put in front of testers, then iterate.</p>
+    </section>
+
+    <!-- 3. How it works -->
+    <section>
+      <h2>How it works</h2>
+      <div class="cards" style="grid-template-columns: 1fr 1fr;">
+        <div class="card">
+          <h3>1 · Offline indexing</h3>
+          Club documents are read, cleaned, split into chunks, and converted to a searchable index <b>once, at build time</b>. No live database to run.
+        </div>
+        <div class="card">
+          <h3>2 · Answering a question</h3>
+          The question is matched against the index; the most relevant passages plus the question are sent to <b>Claude</b>, which writes the answer with citations.
+        </div>
+      </div>
+      <p class="pill-row">
+        <span class="pill">Python · FastAPI</span>
+        <span class="pill">ChromaDB (embedded)</span>
+        <span class="pill">Claude Sonnet 4.6</span>
+        <span class="pill">Docker · Google Cloud Run</span>
+      </p>
+      <p class="muted" style="margin-top:0.5em;">The model is a single configuration setting. Over time the club can switch to a newer Sonnet release — or an Opus model — for higher answer quality, traded off against higher per-question cost.</p>
+    </section>
+
+    <!-- 4. Where it lives today -->
+    <section>
+      <h2>Where it lived (test deployment)</h2>
+      <ul>
+        <li>Ran on <b>Google Cloud Run</b> — automatic HTTPS, scales to zero (≈ $0 when idle).</li>
+        <li>Sizing: 1 CPU / 1 GB RAM, simple shared-password gate.</li>
+        <li>Cost while running: <b>&lt; $5/month</b> hosting + ~$0.01–0.03 per question (Claude API).</li>
+      </ul>
+      <div class="warn">
+        ⚠️ The test deployment ran on <b>brentmid's personal accounts</b> and has been <b>shut down</b> to stop billing. All of its credentials are dead.
+      </div>
+    </section>
+
+    <!-- 5. The key caveat -->
+    <section>
+      <h2>The starting point for Club IT</h2>
+      <p class="lead">Nothing is running right now — and that's intentional.</p>
+      <ul>
+        <li>The personal GCP project, API key, and passwords are <b>decommissioned</b>.</li>
+        <li>To stand it back up, Club IT provisions <b>their own</b>: a Google Cloud project, an Anthropic API key, and new passwords.</li>
+        <li>The full step-by-step runbook ships with the code (<code>DEPLOYMENT_PLAN.md</code>) and is project-portable.</li>
+      </ul>
+    </section>
+
+    <!-- 6. Not production-ready -->
+    <section>
+      <h2>Honest gaps — it's an MVP</h2>
+      <p class="muted">Deliberate shortcuts taken to ship fast. Each must be addressed before opening to the full membership.</p>
+      <table>
+        <tr><th>Gap</th><th>Why it matters in production</th></tr>
+        <tr><td>Single shared password</td><td>No per-member identity or revocation</td></tr>
+        <tr><td>Sessions held in memory</td><td>Conversations lost on restart; breaks across instances</td></tr>
+        <tr><td>No rate limiting</td><td>One user could run up unbounded API cost</td></tr>
+        <tr><td>No monitoring / logging</td><td>No visibility into usage, errors, or spend</td></tr>
+        <tr><td>Doc updates need a rebuild</td><td>Non-technical staff can't update content themselves</td></tr>
+      </table>
+      <p class="muted">Plus: no OCR for scanned docs, no streaming responses. All tracked as GitHub issues.</p>
+      <p class="muted" style="margin-top:0.4em;"><b>brentmid can help address these</b> if desired — see the next slide for ownership options.</p>
+    </section>
+
+    <!-- 7. The decision: who owns it -->
+    <section>
+      <h2>The key decision: who owns it?</h2>
+      <div class="cards">
+        <div class="card">
+          <h3>A · Club owns all</h3>
+          Club's own cloud + API accounts; brentmid steps away.
+          <p class="muted" style="margin:.4em 0 0;">Full control · needs technical staff/vendor.</p>
+        </div>
+        <div class="card">
+          <h3>B · brentmid runs, club funds</h3>
+          brentmid keeps operating it; club pays for API + hosting.
+          <p class="muted" style="margin:.4em 0 0;">Fastest live · depends on one person.</p>
+        </div>
+        <div class="card">
+          <h3>C · Managed vendor</h3>
+          A third party operates it under a support contract.
+          <p class="muted" style="margin:.4em 0 0;">Defined accountability · recurring cost.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. Account transfer -->
+    <section>
+      <h2>Account transfer checklist</h2>
+      <ul style="font-size:0.82em;">
+        <li>Create a <b>club-owned</b> Google Cloud project and Anthropic API key (with a spend cap).</li>
+        <li>Set fresh passwords in the new project's secret store — reuse nothing.</li>
+        <li>Redeploy using the included runbook against the club's project.</li>
+        <li>Point a club subdomain at the new service; set a budget alert.</li>
+        <li>Transfer the GitHub repository to a club-owned account <em>(if desired)</em>.</li>
+      </ul>
+    </section>
+
+    <!-- 9. Roadmap -->
+    <section>
+      <h2>Roadmap to production</h2>
+      <div class="phase">
+        <p><b>Phase 0 — Account transfer &amp; budget alerts</b> <span class="eff">~1–2 days</span> · prerequisite</p>
+        <p><b>Phase 1 — Real member authentication</b> <span class="eff">~3–8 days</span> · replaces the shared password</p>
+        <p><b>Phase 2 — Persistent sessions &amp; feedback</b> <span class="eff">~2–4 days</span> · survive restarts, scale out</p>
+        <p><b>Phase 3 — Rate limiting &amp; abuse controls</b> <span class="eff">~1–3 days</span> · bound API spend</p>
+        <p><b>Phase 4 — Monitoring, logging &amp; cost visibility</b> <span class="eff">~2–4 days</span></p>
+        <p><b>Phase 5 — Self-service document updates</b> <span class="eff">~4–8 days</span> · no rebuild needed</p>
+        <p><b>Phase 6 — Quality &amp; UX polish</b> <span class="eff">ongoing</span> · streaming, OCR, tests</p>
+      </div>
+      <p class="muted">Phases 0–4 (~9–21 developer-days) get to a defensible production system; 5–6 follow launch.</p>
+    </section>
+
+    <!-- Authentication deep-dive -->
+    <section>
+      <h2>Authentication: the open question</h2>
+      <p>The club's system of record is <b>Northstar</b> (globalnorthstar.com).</p>
+      <p class="lead" style="margin:0.3em 0;">First to determine: <b>does Northstar expose an API for authentication?</b> <span class="muted">(Likely not.)</span></p>
+      <p style="margin-bottom:0.2em;">If not, an approach to investigate:</p>
+      <div class="cards">
+        <div class="card">
+          <h3>Passcode</h3>
+          Issue and manage member access codes for the assistant.
+        </div>
+        <div class="card">
+          <h3>OAuth login</h3>
+          Create and distribute an OAuth-based member sign-in.
+        </div>
+        <div class="card">
+          <h3>Site-to-site</h3>
+          Members authenticate to Northstar at thelandings.com first, then reach the assistant on a short-lived token.
+        </div>
+      </div>
+      <p class="muted" style="margin-top:0.5em;">Options still to be investigated — brentmid can help evaluate.</p>
+    </section>
+
+    <!-- 10. Cost -->
+    <section>
+      <h2>What it costs to run</h2>
+      <table>
+        <tr><th>Component</th><th>Cost</th></tr>
+        <tr><td>Cloud Run hosting (scales to zero)</td><td>~$0 idle; pennies per request</td></tr>
+        <tr><td>Image storage + secrets</td><td>Cents/month (free tiers cover most)</td></tr>
+        <tr><td>Claude API</td><td>~$0.01–0.03 per question</td></tr>
+      </table>
+      <p class="lead" style="margin-top:.6em;">≈ <b>$10–30/month</b> in API cost at 1,000 questions/month, plus &lt; $5/month hosting.</p>
+      <p class="muted">Set an Anthropic monthly spend cap and a cloud budget alert — both take minutes.</p>
+    </section>
+
+    <!-- 11. Operational basics -->
+    <section>
+      <h2>Operating it, day to day</h2>
+      <ul style="font-size:0.86em;">
+        <li><b>Custom domain:</b> map a club subdomain (e.g. <code>assistant.thelandings.com</code>); TLS is automatic.</li>
+        <li><b>Updating documents:</b> today, replace files and redeploy; Phase 5 adds a self-service upload page.</li>
+        <li><b>Backups:</b> the <b>only</b> irreplaceable data is the source documents — everything else rebuilds from them.</li>
+        <li><b>Cost &amp; quality:</b> watch the billing report and spend cap; log questions (with a privacy review) to gauge answer quality.</li>
+      </ul>
+    </section>
+
+    <!-- 12. Recommended sequence -->
+    <section>
+      <h2>Recommended sequence</h2>
+      <ol style="font-size:0.9em;">
+        <li><b>Decide ownership</b> (A / B / C) — everything else follows this.</li>
+        <li><b>Phase 0:</b> transfer accounts, set spend caps — now club-owned.</li>
+        <li><b>Phases 1–3:</b> auth, persistent sessions, rate limiting — the gate to a full launch.</li>
+        <li><b>Soft launch</b> to a member subset; turn on monitoring; watch cost &amp; quality.</li>
+        <li><b>Phases 5–6:</b> self-service docs and polish once proven.</li>
+      </ol>
+    </section>
+
+    <!-- 13. Open questions -->
+    <section>
+      <h2>Open questions for the club</h2>
+      <ul style="font-size:0.84em;">
+        <li>Who owns day-to-day operations — internal IT, brentmid, or a vendor?</li>
+        <li>What monthly budget ceiling for API + hosting?</li>
+        <li>Is logging member questions for quality review acceptable under club privacy norms?</li>
+        <li>What subdomain should the service live at?</li>
+      </ul>
+    </section>
+
+    <!-- 14. Closing -->
+    <section class="center" data-background-color="#0f3d27">
+      <h2 style="color:#fff;">Where to start</h2>
+      <p style="color:#cfe3d8;">The full detail behind this brief lives in the repository:</p>
+      <p class="pill-row">
+        <span class="pill" style="background:#155233;color:#fff;border-color:#1f6f43;"><code style="background:transparent;color:#fff;">TRANSITION_PLAN.md</code> — full handoff guide</span>
+        <span class="pill" style="background:#155233;color:#fff;border-color:#1f6f43;"><code style="background:transparent;color:#fff;">DEPLOYMENT_PLAN.md</code> — deploy runbook</span>
+      </p>
+      <p class="muted" style="color:#8fb6a1; margin-top:1.4em;">github.com/brentmid/LGAC-Virtual-Assistant</p>
+    </section>
+
+  </div>
+</div>
+
+<div class="footer">LGAC Virtual Assistant · Transition Brief</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    controls: true,
+    progress: true,
+    center: false
+  });
+</script>
+</body>
+</html>
