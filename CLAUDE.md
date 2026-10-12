@@ -49,6 +49,13 @@ feedback.json           # Feedback records (gitignored — created at runtime)
 ## Common Commands
 
 ```bash
+# Local Python note (2026-10-12): the existing .venv was built on Homebrew python@3.13 (3.13.12)
+# and python@3.13 is kept installed only for this project — every other ~/bin project runs
+# python@3.14. pyproject.toml allows >=3.11, but a 3.14 rebuild has never been tried, so if
+# you come back to this: either keep using the 3.13 venv as-is, or rebuild it on 3.14 with the
+# commands below and expect possible wheel gaps (chromadb, PyMuPDF). If python@3.13 has been
+# removed since, `brew install python@3.13` and build the venv with /opt/homebrew/opt/python@3.13/bin/python3.13.
+
 # Install for development
 python3 -m venv .venv
 source .venv/bin/activate
